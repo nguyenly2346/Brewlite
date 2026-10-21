@@ -1,0 +1,16 @@
+{
+  "name": "brewlite",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm --prefix apps/api run start:dev",
+    "dev:frontend": "npm --prefix apps/web run dev",
+    "build:backend": "npm --prefix apps/api run build",
+    "build:frontend": "npm --prefix apps/web run build",
+    "seed:backend": "npm --prefix apps/api run prisma:seed",
+    "test:backend": "npm --prefix apps/api run test",
+    "test:e2e": "npm --prefix apps/api run test -- checkout-flow",
+    "docker:up": "docker compose up --build -d",
+    "docker:down": "docker compose down -v"
+  }
+}
