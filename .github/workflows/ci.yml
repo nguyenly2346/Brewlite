@@ -1,0 +1,66 @@
+name: BrewLite CI Pipeline
+
+on:
+  pull_request:
+    branches: [main, master, develop]
+  push:
+    branches: [main, master, develop]
+
+jobs:
+  lint-and-test:
+    name: Lint, Unit Test and Build Gate
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: brewlite
+          POSTGRES_PASSWORD: brewlite_password
+          POSTGRES_DB: brewlite_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Root & App Dependencies
+        run: |
+          npm --prefix apps/api install
+          npm --prefix apps/web install
+
+      - name: Generate Prisma Client & Migrate Test DB
+        env:
+          DATABASE_URL: postgresql://brewlite:brewlite_password@localhost:5432/brewlite_db?schema=public
+        run: |
+          npm --prefix apps/api run prisma:generate
+          npm --prefix apps/api run prisma:push
+
+      - name: Run Backend Unit Tests (Task 10 Verification)
+        env:
+          DATABASE_URL: postgresql://brewlite:brewlite_password@localhost:5432/brewlite_db?schema=public
+          JWT_SECRET: brewlite_super_secret_jwt_key_2026
+        run: |
+          npm --prefix apps/api run test
+
+      - name: Build Backend (NestJS)
+        run: |
+          npm --prefix apps/api run build
+
+      - name: Build Frontend (Next.js)
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4000
+        run: |
+          npm --prefix apps/web run build
