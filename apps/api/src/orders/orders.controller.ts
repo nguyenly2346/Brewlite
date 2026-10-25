@@ -1,8 +1,9 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './orders.dto';
-import { JwtAuthGuard } from '../common/guards';
-import { AuthenticatedUser, CurrentUser } from '../common/decorators';
+import { JwtAuthGuard, RolesGuard } from '../common/guards';
+import { AuthenticatedUser, CurrentUser, Roles } from '../common/decorators';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
@@ -25,6 +26,8 @@ export class OrdersController {
   }
 
   @Patch(':id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   async updateStatus(@Param('id') id: string, @Body() dto: UpdateOrderStatusDto) {
     return this.ordersService.updateOrderStatus(id, dto);
   }

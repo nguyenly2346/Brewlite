@@ -21,7 +21,7 @@ const SIZE_UPCHARGE: Record<ProductSize, number> = {
 export class OrdersService {
   constructor(private readonly prisma: PrismaService) {}
 
-async createOrder(userId: string, dto: CreateOrderDto) {
+  async createOrder(userId: string, dto: CreateOrderDto) {
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException('Giỏ hàng không được để trống');
     }
@@ -132,13 +132,17 @@ async createOrder(userId: string, dto: CreateOrderDto) {
               where: { code: normalizedCode },
             });
 
-            if (!promo || !promo.isActive || promo.expiresAt.getTime() < Date.now()) {
-              throw new BadRequestException('Mã khuyến mãi không hợp lệ hoặc đã hết hạn');
+            if (!promo || !promo.isActive) {
+              throw new NotFoundException('Mã khuyến mãi không tồn tại hoặc đã ngừng áp dụng');
+            }
+
+            if (promo.expiresAt.getTime() < Date.now()) {
+              throw new BadRequestException('Mã khuyến mãi đã hết hạn sử dụng');
             }
 
             if (subtotal < promo.minOrderValue) {
               throw new BadRequestException(
-                `Đơn hàng cần tối thiểu ${promo.minOrderValue.toLocaleString('vi-VN')}đ để dùng mã ${promo.code}`,
+                `Đơn hàng tối thiểu ${promo.minOrderValue.toLocaleString('vi-VN')}đ mới được áp dụng mã ${promo.code}`,
               );
             }
 
