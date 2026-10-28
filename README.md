@@ -27,26 +27,16 @@ BrewLite là ứng dụng web đặt cà phê và thanh toán không tiếp xúc
 
 ## 3. Yêu cầu môi trường cài đặt
 
-Trước khi bắt đầu, máy tính cần cài sẵn các phần mềm sau (nếu chưa có):
+Trước khi bắt đầu, máy tính cần cài sẵn các phần mềm sau:
 
-1. **Docker Desktop** (Bắt buộc để chạy nhanh toàn bộ hệ thống):
-   - Tải về tại: https://www.docker.com/products/docker-desktop/
-   - Cài đặt xong, hãy mở ứng dụng Docker Desktop lên và chờ biểu tượng ở góc thanh taskbar chuyển sang trạng thái hoạt động (màu xanh).
-2. **Node.js phiên bản LTS (v20 trở lên)** (Cần thiết nếu muốn chạy code trực tiếp trên máy mà không dùng Docker):
-   - Tải về tại: https://nodejs.org/
-   - Cài đặt mặc định bằng cách bấm Next cho đến khi hoàn tất.
-3. **Git** (Dùng để clone mã nguồn nếu lấy từ GitHub):
-   - Tải về tại: https://git-scm.com/
-4. **Trình duyệt web**: Google Chrome, Microsoft Edge hoặc bất kỳ trình duyệt hiện đại nào.
+1. **Docker Desktop**
+2. **Node.js phiên bản LTS (v20 trở lên)**
+3. **Git**
 
 ---
 
-## 4. Hướng dẫn chạy từ đầu cho máy mới (Dùng Docker Desktop)
-
-Đây là cách đơn giản và chuẩn xác nhất để chạy toàn bộ hệ thống gồm Database, Backend và Frontend chỉ với một câu lệnh.
-
+## 4. Hướng dẫn chạy từ đầu (Docker Desktop)
 ### Bước 1: Mở thư mục dự án trong Terminal
-
 1. Giải nén mã nguồn hoặc clone repository về máy tính của bạn.
 2. Mở cửa sổ dòng lệnh tại thư mục gốc `brewlite` (nơi chứa file `docker-compose.yml`):
    - **Trên Windows**: Mở thư mục `brewlite`, nhấp chuột vào thanh địa chỉ thư mục ở trên cùng, gõ `cmd` hoặc `powershell` rồi nhấn `Enter`.
@@ -71,8 +61,6 @@ Chạy lệnh sau để Docker tự động tải image PostgreSQL, build Backen
 docker compose up --build -d
 ```
 
-Quá trình này mất khoảng 2 đến 4 phút trong lần đầu tiên tùy thuộc vào tốc độ mạng của bạn. Khi terminal hiển thị trạng thái `Started` cho cả 3 container (`brewlite-db`, `brewlite-backend`, `brewlite-frontend`), hệ thống đã sẵn sàng.
-
 ### Bước 4: Truy cập các cổng dịch vụ
 
 Mở trình duyệt web và truy cập các địa chỉ tương ứng:
@@ -81,14 +69,11 @@ Mở trình duyệt web và truy cập các địa chỉ tương ứng:
 | :--- | :--- | :--- |
 | **Giao diện Chính** | `http://localhost:3000` | Xem menu, chọn size, topping, đường đá, đặt món và thanh toán |
 | **Backend API Health** | `http://localhost:4000/health` | Kiểm tra trạng thái máy chủ NestJS và kết nối Database |
-| **Prisma Studio (Xem DB)** | `http://localhost:5555` | Xem và chỉnh sửa trực tiếp các bảng dữ liệu qua giao diện web |
 
 ---
 
 ## 5. Tài khoản mẫu và dữ liệu thử nghiệm
-
-Hệ thống đã nạp sẵn tài khoản và dữ liệu trong Database để phục vụ chấm bài và kiểm thử:
-
+Hệ thống đã có sẵn tài khoản và dữ liệu trong Database để phục vụ chấm bài và kiểm thử:
 ### Tài khoản đăng nhập
 - **Khách hàng**: `khachhang@brewlite.vn` / Mật khẩu: `BrewLite@123` (Có sẵn 15.000 điểm thưởng thành viên).
 - **Quản trị viên (Admin)**: `admin@brewlite.vn` / Mật khẩu: `BrewLite@123` (Toàn quyền quản trị quầy và kho).
@@ -104,7 +89,7 @@ Hệ thống đã nạp sẵn tài khoản và dữ liệu trong Database để 
 
 ## 6. Hướng dẫn xem và quản lý Cơ sở dữ liệu
 
-Nếu bạn muốn mở giao diện trực quan dạng bảng để xem hoặc sửa dữ liệu trong PostgreSQL tương tự phpMyAdmin:
+Nếu bạn muốn mở giao diện trực quan dạng bảng để xem hoặc sửa dữ liệu trong PostgreSQL:
 
 1. Mở một cửa sổ dòng lệnh tại thư mục `backend`:
    ```bash
@@ -112,13 +97,10 @@ Nếu bạn muốn mở giao diện trực quan dạng bảng để xem hoặc s
    npx prisma@5 studio
    ```
 2. Trình duyệt sẽ tự động mở trang `http://localhost:5555`.
-3. Bạn có thể chọn từng bảng (`User`, `Product`, `Ingredient`, `Recipe`, `Order`, `Payment`...) để xem chi tiết, sửa trực tiếp trên ô và nhấn `Save changes`.
 
 ---
 
 ## 7. Hướng dẫn chạy thủ công từng phần (Không qua Docker)
-
-Nếu máy tính của bạn gặp sự cố với Docker hoặc bạn muốn chỉnh sửa code và xem cập nhật ngay lập tức:
 
 ### Bước 1: Khởi động riêng Database
 Giữ lại container Database chạy nền:
