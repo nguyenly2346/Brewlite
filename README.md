@@ -1,5 +1,5 @@
 <<<<<<< HEAD
-# ☕ BrewLite — Đặt cà phê không tiền mặt
+# BrewLite — Đặt cà phê không tiền mặt
 
 Bài tập lớn môn **Công nghệ Phần mềm** — **Nhóm 19**, Khoa CNTT, Đại học Sài Gòn (SGU).
 
