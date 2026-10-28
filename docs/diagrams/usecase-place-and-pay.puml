@@ -1,0 +1,33 @@
+@startuml usecase-place-and-pay
+title UC-01 — Đặt và thanh toán đơn hàng
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+
+actor "Khách hàng" as Customer
+actor "Cổng thanh toán\n(Mock Payment Service)" as Pay <<system>>
+
+rectangle "Hệ thống BrewLite" {
+  usecase "UC-01 Đặt và thanh toán\nđơn hàng" as UC01
+  usecase "Đăng nhập" as Login
+  usecase "Xem giỏ hàng & tổng tiền" as Cart
+  usecase "Tạo đơn PENDING\n(kiểm tra & trừ tồn kho)" as CreateOrder
+  usecase "Thanh toán Ví / Thẻ\n(Idempotency-Key)" as Payment
+  usecase "Áp mã khuyến mãi" as Promo
+  usecase "Dùng điểm thưởng" as Points
+  usecase "Hiển thị xác nhận đơn" as Confirm
+  usecase "Xử lý thanh toán lỗi\n(PAYMENT_FAILED, thử lại)" as Fail
+}
+
+Customer --> UC01
+UC01 ..> Login : <<include>>
+UC01 ..> Cart : <<include>>
+UC01 ..> CreateOrder : <<include>>
+UC01 ..> Payment : <<include>>
+UC01 ..> Confirm : <<include>>
+Promo .> UC01 : <<extend>>
+Points .> UC01 : <<extend>>
+Fail .> Payment : <<extend>>
+Payment --> Pay
+@enduml
