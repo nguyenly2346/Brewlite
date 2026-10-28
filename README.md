@@ -63,10 +63,7 @@ bash tests/smoke-test.sh http://localhost:4000   # từ thư mục gốc
 
 ---
 
-# ✅ Checklist yêu cầu
-
-> `[x]` = đã có trong repo · `[ ]` = chưa có / chưa thể chứng minh từ repo.
-
+# Checklist yêu cầu
 ## Assignment 2 — Requirements to Deployment
 
 ### Task 1 — Khai thác và đặc tả yêu cầu
