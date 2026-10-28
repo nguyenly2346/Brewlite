@@ -1,0 +1,80 @@
+@startuml sequence-checkout
+title Sequence diagram — UC-01 Đặt và thanh toán đơn hàng
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam sequenceMessageAlign left
+autonumber
+
+actor Customer as C
+participant "Next.js UI" as UI
+participant "NestJS API" as API
+database "Database\n(PostgreSQL)" as DB
+participant "Payment Service\n(mock)" as PAY
+
+== Đăng nhập (nếu chưa có JWT) ==
+C -> UI : Bấm "Thanh toán"
+alt Chưa đăng nhập
+  UI --> C : Chuyển tới /login
+  C -> UI : Nhập email, mật khẩu
+  UI -> API : POST /auth/login
+  API -> DB : Tìm user, so khớp bcrypt
+  DB --> API : user
+  API --> UI : 200 {accessToken}
+else Đã có JWT
+end
+
+== Tạo đơn (PENDING) ==
+C -> UI : Chọn Ví/Thẻ, mã KM, điểm; xác nhận
+UI -> API : POST /orders {items, promotionCode, pointsUsed}\nAuthorization: Bearer <JWT>
+API -> API : JwtAuthGuard kiểm tra JWT\nValidationPipe validate DTO
+alt JWT sai/thiếu hoặc dữ liệu không hợp lệ
+  API --> UI : 401 / 400
+  UI --> C : Hiển thị lỗi, giữ giỏ hàng
+else Hợp lệ
+  API -> DB : BEGIN TRANSACTION
+  loop Mỗi sản phẩm trong giỏ
+    API -> DB : SELECT product (stock, version)
+    DB --> API : product
+    API -> DB : UPDATE product SET stock = stock - qty, version = version + 1\nWHERE id AND version = ? AND stock >= qty
+    DB --> API : số dòng cập nhật
+  end
+  alt Hết hàng / xung đột optimistic lock
+    API -> DB : ROLLBACK
+    note right of API : Xung đột khóa: tự thử lại tối đa 5 lần
+    API --> UI : 409 Conflict
+    UI --> C : Báo hết hàng, giữ giỏ hàng
+  else Đủ tồn kho
+    API -> DB : SELECT topping, promotion, user.loyaltyPoints
+    DB --> API : dữ liệu
+    API -> DB : UPDATE user (trừ điểm), INSERT order (PENDING) + order_items,\nINSERT loyalty_transaction (REDEEM nếu dùng điểm)
+    API -> DB : COMMIT
+    API --> UI : 201 {id, orderCode, status: PENDING, total}
+  end
+end
+
+== Thanh toán (idempotent) ==
+UI -> UI : Sinh Idempotency-Key duy nhất
+UI -> API : POST /payments {orderId, method}\nIdempotency-Key: pay-...\nAuthorization: Bearer <JWT>
+API -> DB : SELECT payment WHERE idempotencyKey = ?
+DB --> API : kết quả
+alt Key đã tồn tại (gửi lại)
+  API --> UI : 200 {payment, order, idempotentReplay: true}
+  note right of API : Không tạo payment mới,\nkhông trừ tiền / cộng điểm lần nữa
+else Key mới
+  API -> DB : BEGIN TRANSACTION, kiểm tra lại key,\nSELECT order, kiểm tra quyền sở hữu,\nassertTransition(status → PAID)
+  API -> PAY : Yêu cầu thanh toán (amount, method)
+  alt Thanh toán thành công
+    PAY --> API : SUCCESS
+    API -> DB : INSERT payment (SUCCESS), UPDATE order → PAID,\nUPDATE user.loyaltyPoints += 5% tổng,\nINSERT loyalty_transaction (EARN)
+    API -> DB : COMMIT
+    API --> UI : 201 {payment, order: PAID, pointsEarned}
+    UI --> C : Xóa giỏ hàng, hiển thị xác nhận (mã đơn, PAID)
+  else Thanh toán thất bại
+    PAY --> API : FAILED
+    API -> DB : INSERT payment (FAILED), UPDATE order → PAYMENT_FAILED
+    API -> DB : COMMIT
+    API --> UI : 201 {payment: FAILED, order: PAYMENT_FAILED}
+    UI --> C : Báo lỗi thanh toán, giữ giỏ hàng, cho phép thử lại
+  end
+end
+@enduml
