@@ -1,0 +1,37 @@
+@startuml usecase-overview
+title BrewLite — Use-case tổng quát
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+
+actor "Khách hàng" as Customer
+actor "Barista / Admin" as Admin
+actor "Cổng thanh toán\n(Mock)" as Pay <<system>>
+
+rectangle "Hệ thống BrewLite" {
+  usecase "UC-02 Xem menu &\nchi tiết sản phẩm" as UC02
+  usecase "UC-03 Quản lý giỏ hàng" as UC03
+  usecase "UC-04 Đăng ký / Đăng nhập" as UC04
+  usecase "UC-01 Đặt và thanh toán\nđơn hàng" as UC01
+  usecase "UC-05 Áp mã khuyến mãi /\ndùng điểm thưởng" as UC05
+  usecase "UC-06 Xem xác nhận &\nlịch sử đơn" as UC06
+  usecase "UC-07 Cập nhật trạng thái đơn" as UC07
+  usecase "UC-08 Quản lý sản phẩm,\nkho, công thức" as UC08
+  usecase "UC-09 Xem thống kê" as UC09
+}
+
+Customer --> UC02
+Customer --> UC03
+Customer --> UC04
+Customer --> UC01
+Customer --> UC06
+Admin --> UC04
+Admin --> UC07
+Admin --> UC08
+Admin --> UC09
+UC01 ..> UC04 : <<include>>
+UC01 ..> UC03 : <<include>>
+UC05 .> UC01 : <<extend>>
+UC01 --> Pay
+@enduml

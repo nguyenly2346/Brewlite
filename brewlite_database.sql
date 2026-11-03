@@ -216,6 +216,8 @@ CREATE TABLE IF NOT EXISTS "Ingredient" (
   code TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   unit TEXT NOT NULL,
+  "purchaseUnit" TEXT NOT NULL DEFAULT 'gói',
+  "purchaseUnitSize" DOUBLE PRECISION NOT NULL DEFAULT 1,
   "currentStock" DOUBLE PRECISION NOT NULL,
   "minThreshold" DOUBLE PRECISION NOT NULL,
   "costPerUnit" INTEGER NOT NULL,
@@ -276,6 +278,10 @@ CREATE TABLE IF NOT EXISTS "PurchaseOrderItem" (
   quantity DOUBLE PRECISION NOT NULL,
   "unitPrice" INTEGER NOT NULL,
   "lineTotal" INTEGER NOT NULL,
+  "purchaseQty" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "purchaseUnit" TEXT NOT NULL DEFAULT '',
+  "purchaseUnitSize" DOUBLE PRECISION NOT NULL DEFAULT 1,
+  "packPrice" INTEGER NOT NULL DEFAULT 0,
   CONSTRAINT "PurchaseOrderItem_purchaseOrderId_fkey" FOREIGN KEY ("purchaseOrderId")
     REFERENCES "PurchaseOrder"(id) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "PurchaseOrderItem_ingredientId_fkey" FOREIGN KEY ("ingredientId")
@@ -393,16 +399,16 @@ VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- 5.5 Ingredients (Kho nguyên liệu thô)
-INSERT INTO "Ingredient" (id, code, name, unit, "currentStock", "minThreshold", "costPerUnit", "isActive")
+INSERT INTO "Ingredient" (id, code, name, unit, "purchaseUnit", "purchaseUnitSize", "currentStock", "minThreshold", "costPerUnit", "isActive")
 VALUES
-  ('ing-1', 'ING-ROBUSTA', 'Hạt Cà Phê Robusta Đắk Lắk Rang Mộc', 'g', 4500, 500, 350, TRUE),
-  ('ing-2', 'ING-ARABICA', 'Hạt Cà Phê Arabica Cầu Đất Thượng Hạng', 'g', 3800, 500, 550, TRUE),
-  ('ing-3', 'ING-MILK-FRESH', 'Sữa Tươi Thanh Trùng Dalatmilk', 'ml', 12000, 2000, 45, TRUE),
-  ('ing-4', 'ING-MILK-COND', 'Sữa Đặc Ngọt Dịu Cao Cấp', 'ml', 5000, 800, 60, TRUE),
-  ('ing-5', 'ING-SYRUP-CARAMEL', 'Sốt Caramel & Syrup Hạt Dẻ', 'ml', 1800, 300, 180, TRUE),
-  ('ing-6', 'ING-ORANGE-LEMON', 'Cam Vàng Tươi & Sả Cây Tự Nhiên', 'g', 3200, 600, 90, TRUE),
-  ('ing-7', 'ING-PEACH-TEA', 'Cốt Trà Đen & Đào Miếng Ngâm Giòn', 'g', 4200, 800, 110, TRUE),
-  ('ing-8', 'ING-MATCHA-UJI', 'Bột Trà Xanh Matcha Uji Nhật Bản', 'g', 180, 250, 1200, TRUE)
+  ('ing-1', 'ING-ROBUSTA', 'Hạt Cà Phê Robusta Đắk Lắk Rang Mộc', 'g', 'gói', 500, 4500, 500, 350, TRUE),
+  ('ing-2', 'ING-ARABICA', 'Hạt Cà Phê Arabica Cầu Đất Thượng Hạng', 'g', 'gói', 500, 4000, 500, 550, TRUE),
+  ('ing-3', 'ING-MILK-FRESH', 'Sữa Tươi Thanh Trùng Dalatmilk', 'ml', 'hộp', 1000, 12000, 2000, 45, TRUE),
+  ('ing-4', 'ING-MILK-COND', 'Sữa Đặc Ngọt Dịu Cao Cấp', 'ml', 'hộp', 1000, 5000, 800, 60, TRUE),
+  ('ing-5', 'ING-SYRUP-CARAMEL', 'Sốt Caramel & Syrup Hạt Dẻ', 'ml', 'chai', 750, 1800, 300, 180, TRUE),
+  ('ing-6', 'ING-ORANGE-LEMON', 'Cam Vàng Tươi & Sả Cây Tự Nhiên', 'g', 'túi', 1000, 3200, 600, 90, TRUE),
+  ('ing-7', 'ING-PEACH-TEA', 'Cốt Trà Đen & Đào Miếng Ngâm Giòn', 'g', 'hũ', 1000, 4200, 800, 110, TRUE),
+  ('ing-8', 'ING-MATCHA-UJI', 'Bột Trà Xanh Matcha Uji Nhật Bản', 'g', 'gói', 100, 180, 250, 1200, TRUE)
 ON CONFLICT (code) DO NOTHING;
 
 -- 5.6 Products (20 thức uống trong thực đơn)
@@ -500,22 +506,22 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO "PurchaseOrder" (id, "poNumber", "supplierId", "totalAmount", status, note, "createdAt")
 VALUES
-  ('po-1', 'PO-202610-001', 'sup-1', 3665000, 'RECEIVED', 'Nhập lô hạt Arabica Cầu Đất và Robusta mới rang đầu tuần', CURRENT_TIMESTAMP - INTERVAL '3 days'),
+  ('po-1', 'PO-202610-001', 'sup-1', 3775000, 'RECEIVED', 'Nhập lô hạt Arabica Cầu Đất và Robusta mới rang đầu tuần', CURRENT_TIMESTAMP - INTERVAL '3 days'),
   ('po-2', 'PO-202610-002', 'sup-2', 840000, 'RECEIVED', 'Nhập sữa tươi thanh trùng Dalatmilk và sữa đặc cao cấp', CURRENT_TIMESTAMP - INTERVAL '1 day')
 ON CONFLICT ("poNumber") DO NOTHING;
 
-INSERT INTO "PurchaseOrderItem" (id, "purchaseOrderId", "ingredientId", quantity, "unitPrice", "lineTotal")
+INSERT INTO "PurchaseOrderItem" (id, "purchaseOrderId", "ingredientId", quantity, "unitPrice", "lineTotal", "purchaseQty", "purchaseUnit", "purchaseUnitSize", "packPrice")
 VALUES
-  ('poi-1', 'po-1', 'ing-1', 4500, 350, 1575000),
-  ('poi-2', 'po-1', 'ing-2', 3800, 550, 2090000),
-  ('poi-3', 'po-2', 'ing-3', 12000, 45, 540000),
-  ('poi-4', 'po-2', 'ing-4', 5000, 60, 300000)
+  ('poi-1', 'po-1', 'ing-1', 4500, 350, 1575000, 9, 'gói', 500, 175000),
+  ('poi-2', 'po-1', 'ing-2', 4000, 550, 2200000, 8, 'gói', 500, 275000),
+  ('poi-3', 'po-2', 'ing-3', 12000, 45, 540000, 12, 'hộp', 1000, 45000),
+  ('poi-4', 'po-2', 'ing-4', 5000, 60, 300000, 5, 'hộp', 1000, 60000)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO "InventoryTransaction" (id, "ingredientId", "orderId", type, "quantityChange", "balanceAfter", reason, "performedBy", "createdAt")
 VALUES
   ('itx-1', 'ing-1', NULL, 'IMPORT', 4500, 4500, 'Nhập kho đầu kỳ theo phiếu PO-202610-001', 'Quản Trị Viên BrewLite', CURRENT_TIMESTAMP - INTERVAL '3 days'),
-  ('itx-2', 'ing-2', NULL, 'IMPORT', 3800, 3800, 'Nhập kho đầu kỳ theo phiếu PO-202610-001', 'Quản Trị Viên BrewLite', CURRENT_TIMESTAMP - INTERVAL '3 days'),
+  ('itx-2', 'ing-2', NULL, 'IMPORT', 4000, 4000, 'Nhập kho đầu kỳ theo phiếu PO-202610-001', 'Quản Trị Viên BrewLite', CURRENT_TIMESTAMP - INTERVAL '3 days'),
   ('itx-3', 'ing-8', NULL, 'ORDER_DEDUCT', -70, 180, 'Xuất kho pha chế Matcha Latte theo định lượng BOM', 'Hệ thống KDS Barista', CURRENT_TIMESTAMP - INTERVAL '1 day')
 ON CONFLICT (id) DO NOTHING;
 
