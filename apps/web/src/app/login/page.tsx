@@ -3,14 +3,7 @@
 import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  Coffee,
-  LogIn,
-  UserCheck,
-  ShieldCheck,
-  AlertCircle,
-  Sparkles,
-} from 'lucide-react';
+import { Coffee, LogIn, AlertCircle, Sparkles } from 'lucide-react';
 import { api, HERO_BANNER_IMAGE, FALLBACK_COFFEE_IMAGE } from '../../lib/api';
 import { useAuthStore } from '../../store/useAuthStore';
 
@@ -24,17 +17,6 @@ function LoginContent() {
   const [password, setPassword] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-
-  const handleQuickFill = (role: 'CUSTOMER' | 'ADMIN') => {
-    if (role === 'CUSTOMER') {
-      setEmail('khachhang@brewlite.vn');
-      setPassword('BrewLite@123');
-    } else {
-      setEmail('admin@brewlite.vn');
-      setPassword('BrewLite@123');
-    }
-    setError(null);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,9 +70,6 @@ function LoginContent() {
             <h2 className="text-xl font-extrabold text-amber-100 leading-snug">
               Đặt món nhanh chóng, tích điểm đổi quà mỗi ngày
             </h2>
-            <p className="text-xs text-[#D7CCC8]">
-              Hỗ trợ đăng nhập nhanh chỉ với 1 chạm choทั้ง Khách hàng và Quản trị viên.
-            </p>
           </div>
         </div>
 
@@ -100,32 +79,8 @@ function LoginContent() {
               Đăng nhập tài khoản
             </h1>
             <p className="text-sm text-[#795548] mt-1">
-              Chọn nút điền nhanh bên dưới hoặc nhập thông tin tài khoản của bạn
+              Nhập thông tin tài khoản của bạn để tiếp tục
             </p>
-          </div>
-
-          <div className="space-y-2">
-            <p className="text-xs font-bold uppercase tracking-wider text-[#8D6E63]">
-              Tài khoản mẫu thử nghiệm nhanh
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('CUSTOMER')}
-                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[#F7F2EB] border border-[#E6DCD2] hover:border-[#3E2723] text-xs font-bold text-[#2C1810] transition-all"
-              >
-                <UserCheck className="w-4 h-4 text-[#3E2723]" />
-                <span>Điền nhanh Khách hàng</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('ADMIN')}
-                className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-300 hover:border-[#B45309] text-xs font-bold text-[#B45309] transition-all"
-              >
-                <ShieldCheck className="w-4 h-4 text-[#B45309]" />
-                <span>Điền nhanh Admin</span>
-              </button>
-            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -138,7 +93,7 @@ function LoginContent() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="khachhang@brewlite.vn"
+                placeholder="Nhập email của bạn"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-sm text-[#2C1810] focus:outline-none focus:border-[#3E2723]"
               />
             </div>

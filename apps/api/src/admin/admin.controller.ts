@@ -31,7 +31,9 @@ async adjustInventory(
   @Body()
   body: {
     ingredientId: string;
-    quantityChange: number;
+    quantityChange?: number;
+    purchaseQty?: number;
+    packPrice?: number;
     type: 'IMPORT' | 'ADJUSTMENT';
     reason: string;
     supplierId?: string;
@@ -55,6 +57,8 @@ async adjustInventory(
       code: string;
       name: string;
       unit: string;
+      purchaseUnit?: string;
+      purchaseUnitSize?: number;
       currentStock: number;
       minThreshold: number;
       costPerUnit: number;
@@ -70,6 +74,8 @@ async adjustInventory(
     body: Partial<{
       name: string;
       unit: string;
+      purchaseUnit: string;
+      purchaseUnitSize: number;
       currentStock: number;
       minThreshold: number;
       costPerUnit: number;

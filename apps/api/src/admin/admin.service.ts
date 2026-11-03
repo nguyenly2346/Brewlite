@@ -193,7 +193,9 @@ export class AdminService {
 
   async adjustIngredientStock(payload: {
     ingredientId: string;
-    quantityChange: number;
+    quantityChange?: number;
+    purchaseQty?: number;
+    packPrice?: number;
     type: 'IMPORT' | 'ADJUSTMENT';
     reason: string;
     supplierId?: string;
@@ -213,14 +215,38 @@ export class AdminService {
         throw new NotFoundException('Không tìm thấy nguyên liệu trong kho');
       }
 
-      const rawQty = Number(payload.quantityChange);
-      const signedDelta =
-        payload.type === 'IMPORT' ? Math.abs(rawQty) : rawQty;
+      const packSize = ing.purchaseUnitSize > 0 ? ing.purchaseUnitSize : 1;
+      const isImport = payload.type === 'IMPORT';
+
+      // Nhập hàng: số lượng theo đơn vị nhập (gói/hộp/chai...) -> quy đổi ra g/ml.
+      // Kiểm kê: số lượng nhập trực tiếp theo g/ml.
+      let purchaseQty = 0;
+      if (isImport) {
+        purchaseQty =
+          payload.purchaseQty !== undefined
+            ? Math.abs(Number(payload.purchaseQty))
+            : Math.abs(Number(payload.quantityChange || 0)) / packSize;
+        if (!purchaseQty || purchaseQty <= 0) {
+          throw new BadRequestException(
+            `Vui lòng nhập số lượng ${ing.purchaseUnit} cần nhập lớn hơn 0`,
+          );
+        }
+      }
+
+      const signedDelta = isImport
+        ? Math.round(purchaseQty * packSize * 1000) / 1000
+        : Number(payload.quantityChange || 0);
       const newBalance = Math.max(0, ing.currentStock + signedDelta);
-      const nextUnitCost =
-        payload.unitCost && Number(payload.unitCost) > 0
-          ? Math.round(Number(payload.unitCost))
-          : ing.costPerUnit;
+
+      const packPrice =
+        payload.packPrice && Number(payload.packPrice) > 0
+          ? Math.round(Number(payload.packPrice))
+          : payload.unitCost && Number(payload.unitCost) > 0
+            ? Math.round(Number(payload.unitCost) * packSize)
+            : Math.round(ing.costPerUnit * packSize);
+      const nextUnitCost = isImport
+        ? Math.max(1, Math.round(packPrice / packSize))
+        : ing.costPerUnit;
 
       const updatedIngredient = await tx.ingredient.update({
         where: { id: ing.id },
@@ -250,7 +276,8 @@ export class AdminService {
 
         const poCount = await tx.purchaseOrder.count();
         const poNumber = `PO-202610-${String(poCount + 1).padStart(3, '0')}`;
-        const lineTotal = Math.round(signedDelta * nextUnitCost);
+        const lineTotal = Math.round(purchaseQty * packPrice);
+        const purchaseQtyLabel = purchaseQty.toLocaleString('vi-VN');
 
         createdPo = await tx.purchaseOrder.create({
           data: {
@@ -258,7 +285,7 @@ export class AdminService {
             supplierId: supplier.id,
             totalAmount: lineTotal,
             status: 'RECEIVED',
-            note: `${payload.reason.trim()} (${signedDelta.toLocaleString('vi-VN')}${ing.unit} ${ing.name})`,
+            note: `${payload.reason.trim()} (${purchaseQtyLabel} ${ing.purchaseUnit} ${ing.name} = ${signedDelta.toLocaleString('vi-VN')}${ing.unit})`,
             items: {
               create: [
                 {
@@ -266,6 +293,10 @@ export class AdminService {
                   quantity: signedDelta,
                   unitPrice: nextUnitCost,
                   lineTotal,
+                  purchaseQty,
+                  purchaseUnit: ing.purchaseUnit,
+                  purchaseUnitSize: packSize,
+                  packPrice,
                 },
               ],
             },
@@ -305,7 +336,7 @@ export class AdminService {
           action: payload.type === 'IMPORT' ? 'INVENTORY_IMPORT' : 'INVENTORY_ADJUST',
           entityType: 'INGREDIENT',
           entityId: ing.code,
-          details: `${ing.name}: ${signedDelta > 0 ? '+' : ''}${signedDelta}${ing.unit} (${payload.reason.trim()})`,
+          details: `${ing.name}: ${signedDelta > 0 ? '+' : ''}${signedDelta}${ing.unit}${isImport ? ` (${purchaseQty} ${ing.purchaseUnit} x ${packSize}${ing.unit})` : ''} (${payload.reason.trim()})`,
         },
       });
 
@@ -321,6 +352,8 @@ export class AdminService {
     code: string;
     name: string;
     unit: string;
+    purchaseUnit?: string;
+    purchaseUnitSize?: number;
     currentStock: number;
     minThreshold: number;
     costPerUnit: number;
@@ -330,7 +363,9 @@ export class AdminService {
       data: {
         code,
         name: body.name.trim(),
-        unit: body.unit.trim() || 'g',
+        unit: body.unit.trim() === 'ml' ? 'ml' : 'g',
+        purchaseUnit: (body.purchaseUnit || '').trim() || 'gói',
+        purchaseUnitSize: Math.max(1, Number(body.purchaseUnitSize || 1)),
         currentStock: Math.max(0, Number(body.currentStock || 0)),
         minThreshold: Math.max(0, Number(body.minThreshold || 100)),
         costPerUnit: Math.max(1, Math.round(Number(body.costPerUnit || 100))),
@@ -344,6 +379,8 @@ export class AdminService {
     body: Partial<{
       name: string;
       unit: string;
+      purchaseUnit: string;
+      purchaseUnitSize: number;
       currentStock: number;
       minThreshold: number;
       costPerUnit: number;
@@ -358,7 +395,9 @@ export class AdminService {
       where: { id },
       data: {
         ...(body.name !== undefined ? { name: body.name.trim() } : {}),
-        ...(body.unit !== undefined ? { unit: body.unit.trim() } : {}),
+        ...(body.unit !== undefined ? { unit: body.unit.trim() === 'ml' ? 'ml' : 'g' } : {}),
+        ...(body.purchaseUnit !== undefined && body.purchaseUnit.trim() !== '' ? { purchaseUnit: body.purchaseUnit.trim() } : {}),
+        ...(body.purchaseUnitSize !== undefined ? { purchaseUnitSize: Math.max(1, Number(body.purchaseUnitSize)) } : {}),
         ...(body.currentStock !== undefined ? { currentStock: Math.max(0, Number(body.currentStock)) } : {}),
         ...(body.minThreshold !== undefined ? { minThreshold: Math.max(0, Number(body.minThreshold)) } : {}),
         ...(body.costPerUnit !== undefined ? { costPerUnit: Math.max(1, Math.round(Number(body.costPerUnit))) } : {}),

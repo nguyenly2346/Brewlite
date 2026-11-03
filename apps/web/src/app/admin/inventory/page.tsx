@@ -41,7 +41,8 @@ export default function AdminInventoryPage() {
     'IMPORT',
   );
   const [quantityChange, setQuantityChange] = useState<number>(500);
-  const [unitCostInput, setUnitCostInput] = useState<number>(350);
+  const [purchaseQty, setPurchaseQty] = useState<number>(1);
+  const [packPriceInput, setPackPriceInput] = useState<number>(0);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('sup-1');
   const [reason, setReason] = useState<string>(
     'Nhập lô nguyên liệu mới từ nhà cung cấp',
@@ -53,6 +54,8 @@ export default function AdminInventoryPage() {
     code: '',
     name: '',
     unit: 'g',
+    purchaseUnit: 'gói',
+    purchaseUnitSize: 500,
     currentStock: 1000,
     minThreshold: 200,
     costPerUnit: 200,
@@ -62,6 +65,8 @@ export default function AdminInventoryPage() {
   const [editIngForm, setEditIngForm] = useState({
     name: '',
     unit: 'g',
+    purchaseUnit: 'gói',
+    purchaseUnitSize: 1,
     minThreshold: 200,
     costPerUnit: 200,
   });
@@ -73,6 +78,17 @@ export default function AdminInventoryPage() {
   );
   const [newBomIngredientId, setNewBomIngredientId] = useState<string>('');
   const [newBomQty, setNewBomQty] = useState<number>(20);
+
+  const PURCHASE_UNITS = ['gói', 'hộp', 'chai', 'túi', 'hũ', 'lon', 'can', 'kg', 'lít'];
+
+  const openImportModal = (ing: Ingredient) => {
+    setSelectedIngredient(ing);
+    setAdjustType('IMPORT');
+    setPurchaseQty(1);
+    setQuantityChange(-100);
+    setPackPriceInput(Math.round(ing.costPerUnit * ing.purchaseUnitSize));
+    setReason(`Nhập bổ sung ${ing.name}`);
+  };
 
   const showToastMsg = (msg: string) => {
     setToast(msg);
@@ -124,14 +140,15 @@ export default function AdminInventoryPage() {
     try {
       const res = await api.adjustInventory(token, {
         ingredientId: selectedIngredient.id,
-        quantityChange: Number(quantityChange),
+        ...(adjustType === 'IMPORT'
+          ? {
+              purchaseQty: Number(purchaseQty),
+              packPrice: Number(packPriceInput),
+            }
+          : { quantityChange: Number(quantityChange) }),
         type: adjustType,
         reason,
         supplierId: selectedSupplierId,
-        unitCost:
-          adjustType === 'IMPORT'
-            ? Number(unitCostInput)
-            : selectedIngredient.costPerUnit,
       });
       setSelectedIngredient(null);
       await fetchInventory();
@@ -163,6 +180,8 @@ export default function AdminInventoryPage() {
         code: '',
         name: '',
         unit: 'g',
+        purchaseUnit: 'gói',
+        purchaseUnitSize: 500,
         currentStock: 1000,
         minThreshold: 200,
         costPerUnit: 200,
@@ -187,6 +206,8 @@ export default function AdminInventoryPage() {
       await api.updateIngredient(token, editingIng.id, {
         name: editIngForm.name,
         unit: editIngForm.unit,
+        purchaseUnit: editIngForm.purchaseUnit,
+        purchaseUnitSize: Number(editIngForm.purchaseUnitSize),
         minThreshold: Number(editIngForm.minThreshold),
         costPerUnit: Number(editIngForm.costPerUnit),
       });
@@ -439,6 +460,7 @@ export default function AdminInventoryPage() {
                 <tr className="bg-[#FDFBF7] border-b border-[#E6DCD2] text-[11px] font-bold uppercase tracking-wider text-[#795548]">
                   <th className="py-3.5 px-5">Mã NL</th>
                   <th className="py-3.5 px-5">Tên nguyên liệu</th>
+                  <th className="py-3.5 px-5">Quy cách nhập</th>
                   <th className="py-3.5 px-5">Tồn hiện tại</th>
                   <th className="py-3.5 px-5">Ngưỡng tối thiểu</th>
                   <th className="py-3.5 px-5">Giá vốn / ĐVT</th>
@@ -457,8 +479,20 @@ export default function AdminInventoryPage() {
                       <td className="py-3.5 px-5 font-bold text-[#2C1810]">
                         {ing.name}
                       </td>
+                      <td className="py-3.5 px-5 text-xs font-bold text-[#5D4037] whitespace-nowrap">
+                        1 {ing.purchaseUnit} ={' '}
+                        {ing.purchaseUnitSize.toLocaleString('vi-VN')} {ing.unit}
+                      </td>
                       <td className="py-3.5 px-5 font-extrabold tabular-nums text-[#2C1810]">
                         {ing.currentStock.toLocaleString('vi-VN')} {ing.unit}
+                        <span className="block text-[11px] font-semibold text-[#795548]">
+                          ≈{' '}
+                          {(ing.currentStock / (ing.purchaseUnitSize || 1)).toLocaleString(
+                            'vi-VN',
+                            { maximumFractionDigits: 1 },
+                          )}{' '}
+                          {ing.purchaseUnit}
+                        </span>
                       </td>
                       <td className="py-3.5 px-5 text-xs text-[#795548] tabular-nums">
                         {ing.minThreshold.toLocaleString('vi-VN')} {ing.unit}
@@ -482,13 +516,7 @@ export default function AdminInventoryPage() {
                         <div className="inline-flex items-center justify-end gap-1.5">
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedIngredient(ing);
-                              setAdjustType('IMPORT');
-                              setQuantityChange(1000);
-                              setUnitCostInput(ing.costPerUnit);
-                              setReason(`Nhập bổ sung ${ing.name}`);
-                            }}
+                            onClick={() => openImportModal(ing)}
                             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#3E2723] text-white text-xs font-bold hover:bg-[#2C1810]"
                           >
                             <PlusCircle className="w-3.5 h-3.5 text-amber-300" />
@@ -502,6 +530,8 @@ export default function AdminInventoryPage() {
                               setEditIngForm({
                                 name: ing.name,
                                 unit: ing.unit,
+                                purchaseUnit: ing.purchaseUnit,
+                                purchaseUnitSize: ing.purchaseUnitSize,
                                 minThreshold: ing.minThreshold,
                                 costPerUnit: ing.costPerUnit,
                               });
@@ -759,14 +789,7 @@ export default function AdminInventoryPage() {
               {ingredients.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const firstIng = ingredients[0];
-                    setSelectedIngredient(firstIng);
-                    setAdjustType('IMPORT');
-                    setQuantityChange(1000);
-                    setUnitCostInput(firstIng.costPerUnit);
-                    setReason(`Nhập lô nguyên liệu ${firstIng.name}`);
-                  }}
+                  onClick={() => openImportModal(ingredients[0])}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#3E2723] text-white text-xs font-bold hover:bg-[#2C1810]"
                 >
                   <PlusCircle className="w-3.5 h-3.5 text-amber-300" />
@@ -794,6 +817,17 @@ export default function AdminInventoryPage() {
                       NCC: {po.supplier?.name || 'Nhà cung cấp chính'}
                     </p>
                     <p className="text-xs text-[#795548]">{po.note}</p>
+                    {(po.items || []).map((it) => (
+                      <p
+                        key={it.id}
+                        className="text-[11px] font-semibold text-[#5D4037]"
+                      >
+                        {it.ingredient?.name || 'Nguyên liệu'}:{' '}
+                        {it.purchaseQty > 0
+                          ? `${it.purchaseQty.toLocaleString('vi-VN')} ${it.purchaseUnit} x ${formatVND(it.packPrice)} = ${it.quantity.toLocaleString('vi-VN')} ${it.ingredient?.unit || ''}`
+                          : `${it.quantity.toLocaleString('vi-VN')} ${it.ingredient?.unit || ''}`}
+                      </p>
+                    ))}
                   </div>
                   <div className="text-right shrink-0">
                     <span className="text-sm font-extrabold text-[#B45309] tabular-nums block">
@@ -905,7 +939,9 @@ export default function AdminInventoryPage() {
                     );
                     if (found) {
                       setSelectedIngredient(found);
-                      setUnitCostInput(found.costPerUnit);
+                      setPackPriceInput(
+                        Math.round(found.costPerUnit * found.purchaseUnitSize),
+                      );
                       setReason(`Nhập bổ sung ${found.name}`);
                     }
                   }}
@@ -913,7 +949,7 @@ export default function AdminInventoryPage() {
                 >
                   {ingredients.map((g) => (
                     <option key={g.id} value={g.id}>
-                      {g.name} (Tồn: {g.currentStock} {g.unit})
+                      {g.name} (Tồn: {g.currentStock.toLocaleString('vi-VN')} {g.unit})
                     </option>
                   ))}
                 </select>
@@ -924,7 +960,7 @@ export default function AdminInventoryPage() {
                   type="button"
                   onClick={() => {
                     setAdjustType('IMPORT');
-                    setQuantityChange(1000);
+                    setPurchaseQty(1);
                   }}
                   className={`py-2 rounded-xl text-xs font-bold border ${
                     adjustType === 'IMPORT'
@@ -969,10 +1005,96 @@ export default function AdminInventoryPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              {adjustType === 'IMPORT' ? (
+                <>
+                  <div className="p-3 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-xs font-semibold text-[#5D4037]">
+                    Quy cách: 1 {selectedIngredient.purchaseUnit} ={' '}
+                    <strong className="text-[#2C1810]">
+                      {selectedIngredient.purchaseUnitSize.toLocaleString('vi-VN')}{' '}
+                      {selectedIngredient.unit}
+                    </strong>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-bold text-[#2C1810]">
+                        Số lượng nhập ({selectedIngredient.purchaseUnit})
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        min={0.01}
+                        step="any"
+                        value={purchaseQty}
+                        onChange={(e) => setPurchaseQty(Number(e.target.value))}
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-sm font-bold tabular-nums"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-xs font-bold text-[#2C1810]">
+                        Đơn giá nhập / {selectedIngredient.purchaseUnit}
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        required
+                        value={packPriceInput}
+                        onChange={(e) =>
+                          setPackPriceInput(Number(e.target.value))
+                        }
+                        className="w-full px-3.5 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-sm font-bold text-[#B45309] tabular-nums"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 space-y-1 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-[#5D4037]">
+                        Quy đổi cộng vào kho:
+                      </span>
+                      <span className="font-extrabold text-[#2C1810] tabular-nums">
+                        +
+                        {(
+                          Math.abs(Number(purchaseQty)) *
+                          selectedIngredient.purchaseUnitSize
+                        ).toLocaleString('vi-VN')}{' '}
+                        {selectedIngredient.unit}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-[#5D4037]">
+                        Giá vốn mới:
+                      </span>
+                      <span className="font-extrabold text-[#B45309] tabular-nums">
+                        {formatVND(
+                          Math.round(
+                            Number(packPriceInput) /
+                              (selectedIngredient.purchaseUnitSize || 1),
+                          ),
+                        )}{' '}
+                        / {selectedIngredient.unit}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-[#5D4037]">
+                        Thành tiền phiếu nhập:
+                      </span>
+                      <span className="font-extrabold text-[#B45309] tabular-nums">
+                        {formatVND(
+                          Math.round(
+                            Math.abs(Number(purchaseQty)) *
+                              Number(packPriceInput),
+                          ),
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-[#2C1810]">
-                    Số lượng ({selectedIngredient.unit})
+                    Số lượng điều chỉnh ({selectedIngredient.unit}) - âm để trừ
                   </label>
                   <input
                     type="number"
@@ -981,35 +1103,6 @@ export default function AdminInventoryPage() {
                     onChange={(e) => setQuantityChange(Number(e.target.value))}
                     className="w-full px-3.5 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-sm font-bold tabular-nums"
                   />
-                </div>
-
-                {adjustType === 'IMPORT' && (
-                  <div className="space-y-1">
-                    <label className="block text-xs font-bold text-[#2C1810]">
-                      Đơn giá nhập / {selectedIngredient.unit}
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      required
-                      value={unitCostInput}
-                      onChange={(e) => setUnitCostInput(Number(e.target.value))}
-                      className="w-full px-3.5 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-sm font-bold text-[#B45309] tabular-nums"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {adjustType === 'IMPORT' && (
-                <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 flex items-center justify-between text-xs">
-                  <span className="font-semibold text-[#5D4037]">
-                    Thành tiền phiếu nhập:
-                  </span>
-                  <span className="font-extrabold text-[#B45309] tabular-nums">
-                    {formatVND(
-                      Math.abs(Number(quantityChange)) * Number(unitCostInput),
-                    )}
-                  </span>
                 </div>
               )}
 
@@ -1095,10 +1188,51 @@ export default function AdminInventoryPage() {
                     className="w-full px-3 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-xs font-bold"
                   >
                     <option value="g">Gram (g)</option>
-                    <option value="ml">Millilit (ml)</option>
-                    <option value="quả">Quả / Trái</option>
-                    <option value="hộp">Hộp</option>
+                    <option value="ml">Mililit (ml)</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-[#2C1810]">
+                    Đơn vị nhập hàng
+                  </label>
+                  <select
+                    value={newIngForm.purchaseUnit}
+                    onChange={(e) =>
+                      setNewIngForm({
+                        ...newIngForm,
+                        purchaseUnit: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-xs font-bold"
+                  >
+                    {PURCHASE_UNITS.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-[#2C1810]">
+                    1 {newIngForm.purchaseUnit} = ? {newIngForm.unit}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step="any"
+                    required
+                    value={newIngForm.purchaseUnitSize}
+                    onChange={(e) =>
+                      setNewIngForm({
+                        ...newIngForm,
+                        purchaseUnitSize: Number(e.target.value),
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-xs font-bold tabular-nums"
+                  />
                 </div>
               </div>
 
@@ -1121,7 +1255,7 @@ export default function AdminInventoryPage() {
               <div className="grid grid-cols-3 gap-2.5">
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-[#2C1810]">
-                    Tồn ban đầu
+                    Tồn ban đầu ({newIngForm.unit})
                   </label>
                   <input
                     type="number"
@@ -1139,7 +1273,7 @@ export default function AdminInventoryPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-[#2C1810]">
-                    Ngưỡng cảnh báo
+                    Ngưỡng cảnh báo ({newIngForm.unit})
                   </label>
                   <input
                     type="number"
@@ -1157,7 +1291,7 @@ export default function AdminInventoryPage() {
                 </div>
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-[#2C1810]">
-                    Giá vốn / ĐVT
+                    Giá vốn / {newIngForm.unit}
                   </label>
                   <input
                     type="number"
@@ -1231,18 +1365,62 @@ export default function AdminInventoryPage() {
               <div className="grid grid-cols-3 gap-2.5">
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-[#2C1810]">
-                    Đơn vị
+                    Đơn vị kho
                   </label>
-                  <input
-                    type="text"
-                    required
+                  <select
                     value={editIngForm.unit}
                     onChange={(e) =>
                       setEditIngForm({ ...editIngForm, unit: e.target.value })
                     }
                     className="w-full px-3 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-xs font-bold"
+                  >
+                    <option value="g">Gram (g)</option>
+                    <option value="ml">Mililit (ml)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-[#2C1810]">
+                    Đơn vị nhập
+                  </label>
+                  <select
+                    value={editIngForm.purchaseUnit}
+                    onChange={(e) =>
+                      setEditIngForm({
+                        ...editIngForm,
+                        purchaseUnit: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-xs font-bold"
+                  >
+                    {PURCHASE_UNITS.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-bold text-[#2C1810]">
+                    1 {editIngForm.purchaseUnit} = ? {editIngForm.unit}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step="any"
+                    required
+                    value={editIngForm.purchaseUnitSize}
+                    onChange={(e) =>
+                      setEditIngForm({
+                        ...editIngForm,
+                        purchaseUnitSize: Number(e.target.value),
+                      })
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-xs font-bold tabular-nums"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-[#2C1810]">
                     Ngưỡng tối thiểu

@@ -25,6 +25,8 @@ export interface Ingredient {
   code: string;
   name: string;
   unit: string;
+  purchaseUnit: string;
+  purchaseUnitSize: number;
   currentStock: number;
   minThreshold: number;
   costPerUnit: number;
@@ -150,6 +152,19 @@ export interface SupplierRecord {
   isActive: boolean;
 }
 
+export interface PurchaseOrderItemRecord {
+  id: string;
+  ingredientId: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  purchaseQty: number;
+  purchaseUnit: string;
+  purchaseUnitSize: number;
+  packPrice: number;
+  ingredient?: Ingredient;
+}
+
 export interface PurchaseOrderRecord {
   id: string;
   poNumber: string;
@@ -159,6 +174,7 @@ export interface PurchaseOrderRecord {
   note?: string | null;
   createdAt: string;
   supplier?: SupplierRecord;
+  items?: PurchaseOrderItemRecord[];
 }
 
 export interface AdminStatsResponse {
@@ -403,7 +419,9 @@ export const api = {
     token: string,
     payload: {
       ingredientId: string;
-      quantityChange: number;
+      quantityChange?: number;
+      purchaseQty?: number;
+      packPrice?: number;
       type: 'IMPORT' | 'ADJUSTMENT';
       reason: string;
       supplierId?: string;
@@ -429,6 +447,8 @@ export const api = {
       code: string;
       name: string;
       unit: string;
+      purchaseUnit: string;
+      purchaseUnitSize: number;
       currentStock: number;
       minThreshold: number;
       costPerUnit: number;
@@ -449,6 +469,8 @@ export const api = {
     payload: Partial<{
       name: string;
       unit: string;
+      purchaseUnit: string;
+      purchaseUnitSize: number;
       currentStock: number;
       minThreshold: number;
       costPerUnit: number;

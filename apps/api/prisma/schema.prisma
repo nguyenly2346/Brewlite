@@ -221,6 +221,8 @@ model Ingredient {
   code                  String                 @unique
   name                  String
   unit                  String
+  purchaseUnit          String                 @default("gói")
+  purchaseUnitSize      Float                  @default(1)
   currentStock          Float
   minThreshold          Float
   costPerUnit           Int
@@ -282,6 +284,10 @@ model PurchaseOrderItem {
   quantity        Float
   unitPrice       Int
   lineTotal       Int
+  purchaseQty     Float         @default(0)
+  purchaseUnit    String        @default("")
+  purchaseUnitSize Float        @default(1)
+  packPrice       Int           @default(0)
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   ingredient      Ingredient    @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
 }
