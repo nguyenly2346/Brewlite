@@ -409,7 +409,9 @@ VALUES
   ('ing-6', 'ING-ORANGE-LEMON', 'Cam Vàng Tươi & Sả Cây Tự Nhiên', 'g', 'túi', 1000, 3200, 600, 90, TRUE),
   ('ing-7', 'ING-PEACH-TEA', 'Cốt Trà Đen & Đào Miếng Ngâm Giòn', 'g', 'hũ', 1000, 4200, 800, 110, TRUE),
   ('ing-8', 'ING-MATCHA-UJI', 'Bột Trà Xanh Matcha Uji Nhật Bản', 'g', 'gói', 100, 180, 250, 1200, TRUE)
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT (code) DO UPDATE SET
+  "purchaseUnit" = EXCLUDED."purchaseUnit",
+  "purchaseUnitSize" = EXCLUDED."purchaseUnitSize";
 
 -- 5.6 Products (20 thức uống trong thực đơn)
 INSERT INTO "Product" (id, "categoryId", code, name, description, category, station, price, "imageUrl", stock, version, "isAvailable")
@@ -516,7 +518,11 @@ VALUES
   ('poi-2', 'po-1', 'ing-2', 4000, 550, 2200000, 8, 'gói', 500, 275000),
   ('poi-3', 'po-2', 'ing-3', 12000, 45, 540000, 12, 'hộp', 1000, 45000),
   ('poi-4', 'po-2', 'ing-4', 5000, 60, 300000, 5, 'hộp', 1000, 60000)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  "purchaseQty" = EXCLUDED."purchaseQty",
+  "purchaseUnit" = EXCLUDED."purchaseUnit",
+  "purchaseUnitSize" = EXCLUDED."purchaseUnitSize",
+  "packPrice" = EXCLUDED."packPrice";
 
 INSERT INTO "InventoryTransaction" (id, "ingredientId", "orderId", type, "quantityChange", "balanceAfter", reason, "performedBy", "createdAt")
 VALUES
