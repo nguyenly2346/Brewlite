@@ -23,11 +23,6 @@ export class CreateProductDto {
   @IsNotEmpty({ message: 'URL hình ảnh không được để trống' })
   imageUrl!: string;
 
-  @Type(() => Number)
-  @IsInt()
-  @Min(0, { message: 'Tồn kho không được âm' })
-  stock!: number;
-
   @IsOptional()
   @IsBoolean()
   isAvailable?: boolean;
@@ -55,12 +50,6 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  stock?: number;
 
   @IsOptional()
   @IsBoolean()

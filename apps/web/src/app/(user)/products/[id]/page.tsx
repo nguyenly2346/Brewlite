@@ -143,8 +143,8 @@ export default function ProductDetailPage() {
     );
   }
 
-  const isOutOfStock = !product.isAvailable || product.stock <= 0;
-  const maxQty = Math.max(1, product.stock);
+  const isOutOfStock = !product.isAvailable;
+  const maxQty = 20;
   const toppingsSum = selectedToppings.reduce((acc, t) => acc + t.price, 0);
   const unitPrice = product.price + getSizeUpcharge(selectedSize) + toppingsSum;
   const totalPrice = unitPrice * qty;
@@ -188,17 +188,13 @@ export default function ProductDetailPage() {
           </div>
 
           <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-xs sm:text-sm">
-            <span className="font-semibold text-[#795548]">Tồn kho quầy:</span>
+            <span className="font-semibold text-[#795548]">Trạng thái:</span>
             <span
-              className={`font-extrabold tabular-nums ${
-                isOutOfStock
-                  ? 'text-red-600'
-                  : product.stock <= 5
-                    ? 'text-amber-600'
-                    : 'text-[#3E2723]'
+              className={`font-extrabold ${
+                isOutOfStock ? 'text-red-600' : 'text-[#3E2723]'
               }`}
             >
-              {isOutOfStock ? 'Tạm hết hàng' : `Còn ${product.stock} ly sẵn sàng`}
+              {isOutOfStock ? 'Tạm ngưng phục vụ' : 'Đang phục vụ'}
             </span>
           </div>
 
@@ -426,7 +422,7 @@ export default function ProductDetailPage() {
               <ShoppingBag className="w-5 h-5 text-amber-300" />
               <span>
                 {isOutOfStock
-                  ? 'Sản phẩm tạm hết hàng'
+                  ? 'Sản phẩm tạm ngưng phục vụ'
                   : `Thêm vào giỏ hàng • ${formatVND(totalPrice)}`}
               </span>
             </button>

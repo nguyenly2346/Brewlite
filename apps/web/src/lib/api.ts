@@ -50,7 +50,6 @@ export interface Product {
   station?: BarStation;
   price: number;
   imageUrl: string;
-  stock: number;
   version: number;
   isAvailable: boolean;
   recipes?: RecipeItem[];
@@ -182,7 +181,6 @@ export interface AdminStatsResponse {
   totalOrders: number;
   activeOrdersCount: number;
   lowStockCount: number;
-  lowStockProducts: Product[];
   lowStockIngredientsCount?: number;
   lowStockIngredients?: Ingredient[];
   revenueLast7Days: Array<{
@@ -542,7 +540,6 @@ export const api = {
       category: string;
       price: number;
       imageUrl: string;
-      stock: number;
       isAvailable?: boolean;
     },
   ) =>
@@ -564,7 +561,6 @@ export const api = {
       category: string;
       price: number;
       imageUrl: string;
-      stock: number;
       isAvailable: boolean;
     }>,
   ) =>

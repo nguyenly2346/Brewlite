@@ -121,10 +121,10 @@ export default function AdminDashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-[#2C1810]">
-            Tổng quan vận hành cửa hàng
+            Báo cáo & Thống kê
           </h1>
           <p className="text-sm text-[#795548]">
-            Số liệu doanh thu thực tế, đơn hàng tại quầy và cảnh báo tồn kho
+            Số liệu doanh thu thực tế, đơn hàng tại quầy và cảnh báo nguyên liệu sắp hết
           </p>
         </div>
         <button
@@ -186,12 +186,12 @@ export default function AdminDashboardPage() {
         <div className="bg-white border border-[#E6DCD2] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-start justify-between">
           <div className="space-y-1">
             <p className="text-xs font-bold uppercase tracking-wider text-[#795548]">
-              Món sắp hết kho
+              Nguyên liệu sắp hết
             </p>
             <p className="text-2xl font-extrabold text-red-600 tabular-nums">
               {stats.lowStockCount}
             </p>
-            <p className="text-xs text-[#795548]">Tồn kho &le; 5 ly</p>
+            <p className="text-xs text-[#795548]">Dưới ngưỡng tối thiểu</p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
             <AlertTriangle className="w-5 h-5" />

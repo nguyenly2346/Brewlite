@@ -86,7 +86,6 @@ model Product {
   station     BarStation       @default(ESPRESSO_BAR)
   price       Int
   imageUrl    String
-  stock       Int
   version     Int              @default(1)
   isAvailable Boolean          @default(true)
   createdAt   DateTime         @default(now())

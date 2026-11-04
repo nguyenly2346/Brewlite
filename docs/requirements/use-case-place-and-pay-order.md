@@ -27,7 +27,7 @@ Nguồn: [`usecase-place-and-pay.puml`](../diagrams/usecase-place-and-pay.puml)
 
 **Thành công:**
 - Có 1 đơn hàng với `status = PAID`, 1 bản ghi payment `SUCCESS`.
-- Tồn kho sản phẩm đã giảm theo số lượng; điểm đã dùng bị trừ; điểm thưởng 5% tổng tiền được cộng cho khách và ghi `LoyaltyTransaction`.
+- Điểm đã dùng bị trừ; điểm thưởng 5% tổng tiền được cộng cho khách và ghi `LoyaltyTransaction`.
 - Giỏ hàng được xóa; khách thấy màn hình xác nhận có mã đơn.
 
 **Thất bại (thanh toán lỗi):**

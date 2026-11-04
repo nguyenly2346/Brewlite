@@ -51,7 +51,7 @@ Xem DB: `cd apps/api && npx prisma@5 studio` → http://localhost:5555
 
 ```bash
 cd apps/api
-npm test            # unit test (state machine, idempotency, tồn kho đồng thời)
+npm test            # unit test (state machine, idempotency)
 npm run test:e2e    # E2E, cần API đang chạy ở :4000 (hoặc NEXT_PUBLIC_API_URL)
 bash tests/smoke-test.sh http://localhost:4000   # từ thư mục gốc
 ```
@@ -230,10 +230,9 @@ Frontend sẽ khởi động trên cổng `http://localhost:3000`.
 
 ## 8. Chạy kiểm thử tự động Backend (Jest - Task 10)
 
-Hệ thống đã viết đầy đủ 3 bộ kiểm thử chứng minh đúng yêu cầu Task 10 của đề bài:
+Hệ thống đã viết đầy đủ 2 bộ kiểm thử chứng minh đúng yêu cầu Task 10 của đề bài:
 1. `task10-state-machine.spec.ts`: Kiểm tra các nhánh chuyển trạng thái hợp lệ và chặn chuyển sai.
 2. `task10-idempotency.spec.ts`: Kiểm tra thanh toán lặp với cùng một Idempotency-Key không bị trừ tiền hay cộng điểm 2 lần.
-3. `task10-concurrency-stock.spec.ts`: Kiểm tra 5 yêu cầu mua đồng thời khi tồn kho chỉ còn 2 ly (chứng minh khóa lạc quan chặn đúng 3 yêu cầu và giữ tồn kho không âm).
 
 Để chạy kiểm thử, mở terminal tại thư mục `backend` và gõ:
 
@@ -256,3 +255,4 @@ npm test
   ```bash
   docker compose down
   ```
+>>>>>>> origin/ltk

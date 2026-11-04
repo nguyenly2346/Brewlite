@@ -332,11 +332,10 @@ export default function AdminInventoryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-[#2C1810]">
-            Kho Nguyên Liệu Thô & Định Lượng Công Thức (BOM)
+            Kho Nguyên Liệu & Định Lượng Thức Uống
           </h1>
           <p className="text-sm text-[#795548]">
-            Quản lý tồn kho nguyên liệu, lập phiếu nhập hàng PO và chỉnh sửa
-            công thức định lượng cho từng món
+            Quản lý tồn kho nguyên liệu, lập phiếu nhập hàng và chỉnh sửa công thức định lượng cho từng món
           </p>
         </div>
 
@@ -412,7 +411,7 @@ export default function AdminInventoryPage() {
           }`}
         >
           <Boxes className="w-4 h-4" />
-          <span>1. Tồn kho Nguyên liệu ({ingredients.length})</span>
+          <span>1. Nguyên liệu tồn kho ({ingredients.length})</span>
         </button>
 
         <button
@@ -426,7 +425,7 @@ export default function AdminInventoryPage() {
         >
           <Flame className="w-4 h-4" />
           <span>
-            2. Bảng định lượng công thức BOM ({productsWithBom.length} món)
+            2. Bảng định lượng công thức
           </span>
         </button>
 
@@ -441,7 +440,7 @@ export default function AdminInventoryPage() {
         >
           <History className="w-4 h-4" />
           <span>
-            3. Phiếu nhập hàng PO ({purchaseOrders.length}) & Lịch sử Kho
+            3. Phiếu nhập hàng & Lịch sử Kho
           </span>
         </button>
       </div>

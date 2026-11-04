@@ -26,7 +26,7 @@ export default function AdminProductsPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const [draftEdits, setDraftEdits] = useState<
-    Record<string, { price: number; stock: number; isAvailable: boolean }>
+    Record<string, { price: number; isAvailable: boolean }>
   >({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
@@ -40,7 +40,6 @@ export default function AdminProductsPage() {
     category: 'Espresso & Máy',
     price: 45000,
     imageUrl: FALLBACK_COFFEE_IMAGE,
-    stock: 30,
     isAvailable: true,
   });
 
@@ -52,12 +51,11 @@ export default function AdminProductsPage() {
       setProducts(data.products);
       const initialDrafts: Record<
         string,
-        { price: number; stock: number; isAvailable: boolean }
+        { price: number; isAvailable: boolean }
       > = {};
       for (const p of data.products) {
         initialDrafts[p.id] = {
           price: p.price,
-          stock: p.stock,
           isAvailable: p.isAvailable,
         };
       }
@@ -90,7 +88,6 @@ export default function AdminProductsPage() {
     try {
       const updated = await api.updateProduct(token, productId, {
         price: Number(draft.price),
-        stock: Number(draft.stock),
         isAvailable: draft.isAvailable,
       });
       setProducts((prev) =>
@@ -134,14 +131,12 @@ export default function AdminProductsPage() {
       const created = await api.createProduct(token, {
         ...newProduct,
         price: Number(newProduct.price),
-        stock: Number(newProduct.stock),
       });
       setProducts((prev) => [created, ...prev]);
       setDraftEdits((prev) => ({
         ...prev,
         [created.id]: {
           price: created.price,
-          stock: created.stock,
           isAvailable: created.isAvailable,
         },
       }));
@@ -152,7 +147,6 @@ export default function AdminProductsPage() {
         category: 'Espresso & Máy',
         price: 45000,
         imageUrl: FALLBACK_COFFEE_IMAGE,
-        stock: 30,
         isAvailable: true,
       });
       showToast(`Đã thêm món "${created.name}" vào thực đơn`);
@@ -175,10 +169,10 @@ export default function AdminProductsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-[#2C1810]">
-            Quản lý Thực đơn & Tồn kho
+            Quản lý Thực đơn & Giá
           </h1>
           <p className="text-sm text-[#795548]">
-            Cập nhật nhanh số lượng tồn kho (stock), giá bán, trạng thái phục vụ hoặc xóa món
+            Cập nhật giá bán và trạng thái phục vụ của món. Nguyên liệu được trừ tự động theo công thức BOM khi nhận đơn
           </p>
         </div>
 
@@ -228,7 +222,6 @@ export default function AdminProductsPage() {
                   <th className="py-3.5 px-5">Sản phẩm</th>
                   <th className="py-3.5 px-5">Danh mục</th>
                   <th className="py-3.5 px-5">Giá bán (VNĐ)</th>
-                  <th className="py-3.5 px-5">Tồn kho (Stock)</th>
                   <th className="py-3.5 px-5">Trạng thái mở bán</th>
                   <th className="py-3.5 px-5 text-right">Thao tác</th>
                 </tr>
@@ -237,12 +230,10 @@ export default function AdminProductsPage() {
                 {products.map((product) => {
                   const draft = draftEdits[product.id] ?? {
                     price: product.price,
-                    stock: product.stock,
                     isAvailable: product.isAvailable,
                   };
                   const isDirty =
                     Number(draft.price) !== product.price ||
-                    Number(draft.stock) !== product.stock ||
                     draft.isAvailable !== product.isAvailable;
 
                   return (
@@ -295,31 +286,6 @@ export default function AdminProductsPage() {
                         <span className="block text-[11px] text-[#795548] mt-0.5 tabular-nums">
                           Hiện tại: {formatVND(product.price)}
                         </span>
-                      </td>
-
-                      <td className="py-3.5 px-5">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min={0}
-                            value={draft.stock}
-                            onChange={(e) =>
-                              setDraftEdits((prev) => ({
-                                ...prev,
-                                [product.id]: {
-                                  ...draft,
-                                  stock: Math.max(0, Number(e.target.value)),
-                                },
-                              }))
-                            }
-                            className={`w-20 px-3 py-1.5 rounded-xl border text-sm font-bold tabular-nums focus:outline-none ${
-                              draft.stock <= 5
-                                ? 'bg-red-50 border-red-300 text-red-700'
-                                : 'bg-[#FDFBF7] border-[#E6DCD2] text-[#2C1810]'
-                            }`}
-                          />
-                          <span className="text-xs text-[#795548]">ly</span>
-                        </div>
                       </td>
 
                       <td className="py-3.5 px-5">
@@ -497,25 +463,6 @@ export default function AdminProductsPage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="block text-xs font-bold text-[#2C1810]">
-                    Số lượng tồn kho ban đầu
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={0}
-                    value={newProduct.stock}
-                    onChange={(e) =>
-                      setNewProduct({
-                        ...newProduct,
-                        stock: Number(e.target.value),
-                      })
-                    }
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] text-sm tabular-nums"
-                  />
-                </div>
-
                 <div className="space-y-1">
                   <label className="block text-xs font-bold text-[#2C1810]">
                     URL Hình ảnh
