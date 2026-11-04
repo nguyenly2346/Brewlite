@@ -15,7 +15,7 @@ export function ProductCard({ product, onQuickAdd }: ProductCardProps) {
     product.imageUrl || FALLBACK_COFFEE_IMAGE,
   );
 
-  const isOutOfStock = !product.isAvailable || product.stock <= 0;
+  const isOutOfStock = !product.isAvailable;
 
   return (
     <div className="flex flex-col h-full bg-white border border-[#E6DCD2] rounded-2xl shadow-sm hover:shadow-xl hover:border-[#8D6E63]/50 transition-all duration-300 overflow-hidden group">
@@ -54,7 +54,7 @@ export function ProductCard({ product, onQuickAdd }: ProductCardProps) {
 
           {isOutOfStock ? (
             <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#F7F2EB] text-[#8D6E63] cursor-not-allowed">
-              Hết hàng
+              Tạm ngưng
             </span>
           ) : (
             <div className="flex items-center gap-2">

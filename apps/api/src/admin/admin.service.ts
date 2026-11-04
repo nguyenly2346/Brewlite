@@ -12,7 +12,7 @@ export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getDashboardStats() {
-    const [orders, lowStockProducts, ingredients, recentAuditLogs] = await Promise.all([
+    const [orders, ingredients, recentAuditLogs] = await Promise.all([
       this.prisma.order.findMany({
         include: {
           items: true,
@@ -25,10 +25,6 @@ export class AdminService {
           },
         },
         orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.product.findMany({
-        where: { stock: { lte: 5 } },
-        orderBy: { stock: 'asc' },
       }),
       this.prisma.ingredient.findMany({
         orderBy: { currentStock: 'asc' },
@@ -62,7 +58,7 @@ export class AdminService {
 
     const totalOrders = orders.length;
     const activeOrdersCount = orders.filter((o) => activeQueueStatuses.includes(o.status)).length;
-    const lowStockCount = lowStockProducts.length;
+    const lowStockCount = lowStockIngredients.length;
 
     const now = new Date();
     const revenueLast7Days: Array<{ date: string; label: string; revenue: number; ordersCount: number }> = [];
@@ -114,7 +110,6 @@ export class AdminService {
       totalOrders,
       activeOrdersCount,
       lowStockCount,
-      lowStockProducts,
       lowStockIngredientsCount: lowStockIngredients.length,
       lowStockIngredients,
       revenueLast7Days,

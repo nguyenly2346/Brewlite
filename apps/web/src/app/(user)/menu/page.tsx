@@ -113,7 +113,7 @@ function MenuCatalogContent() {
       const matchesPrice =
         p.price >= appliedLowBound && p.price <= appliedHighBound;
       const matchesStock = appliedOnlyInStock
-        ? p.isAvailable && p.stock > 0
+        ? p.isAvailable
         : true;
 
       return matchesCat && matchesSearch && matchesPrice && matchesStock;
@@ -400,7 +400,7 @@ function MenuCatalogContent() {
           <div className="pt-2 border-t border-[#E6DCD2]">
             <label className="flex items-center justify-between cursor-pointer">
               <span className="text-xs font-bold text-[#2C1810]">
-                Chỉ hiện món còn hàng
+                Chỉ hiện món đang phục vụ
               </span>
               <input
                 type="checkbox"

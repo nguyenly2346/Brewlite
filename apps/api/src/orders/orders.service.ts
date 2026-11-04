@@ -69,30 +69,6 @@ export class OrdersService {
               throw new BadRequestException('Sản phẩm không tồn tại hoặc đang tạm ngưng phục vụ');
             }
 
-            if (product.stock < item.qty) {
-              throw new ConflictException(
-                'Sản phẩm không đủ tồn kho hoặc đang có giao dịch đồng thời, vui lòng thử lại',
-              );
-            }
-
-            const updatedStock = await tx.product.updateMany({
-              where: {
-                id: product.id,
-                version: product.version,
-                stock: { gte: item.qty },
-              },
-              data: {
-                stock: { decrement: item.qty },
-                version: { increment: 1 },
-              },
-            });
-
-            if (updatedStock.count === 0) {
-              throw new ConflictException(
-                'OPT_LOCK_CONFLICT: Có giao dịch đồng thời cập nhật sản phẩm, vui lòng thử lại',
-              );
-            }
-
             const selectedToppings = (item.toppingIds ?? []).map((tid) => {
               const found = toppingsMap.get(tid);
               if (!found) {
@@ -295,15 +271,6 @@ export class OrdersService {
       assertTransition(order.status, dto.status);
 
       if (dto.status === OrderStatus.CANCELLED) {
-        for (const item of order.items) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: {
-              stock: { increment: item.qty },
-              version: { increment: 1 },
-            },
-          });
-        }
         if (order.pointsUsed && order.pointsUsed > 0 && tx.user) {
           await tx.user.update({
             where: { id: order.userId },

@@ -126,7 +126,7 @@ export default function AdminOrdersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-[#2C1810]">
-            Điều phối Quầy Pha Chế KDS & Quản lý Đơn hàng
+            Điều phối Quầy Pha Chế & Quản lý Đơn hàng
           </h1>
           <p className="text-sm text-[#795548]">
             Phân luồng theo trạm Barista, xem chi tiết hóa đơn và tự động trừ kho nguyên liệu BOM khi bấm Nhận đơn
@@ -139,7 +139,7 @@ export default function AdminOrdersPage() {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-[#E6DCD2] text-xs sm:text-sm font-bold text-[#2C1810] hover:bg-[#FDFBF7] shadow-sm"
         >
           <RefreshCw className="w-4 h-4" />
-          <span>Làm mới KDS</span>
+          <span>Làm mới</span>
         </button>
       </div>
 
