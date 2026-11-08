@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -50,8 +50,10 @@ export default function AdminLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, token, hydrated, logout } = useAuthStore();
+  const loggingOutRef = useRef<boolean>(false);
 
   useEffect(() => {
+    if (loggingOutRef.current) return;
     if (hydrated && (!token || user?.role !== 'ADMIN')) {
       router.replace('/login?redirect=/admin');
     }
@@ -129,8 +131,9 @@ export default function AdminLayout({
           <button
             type="button"
             onClick={() => {
+              loggingOutRef.current = true;
               logout();
-              router.push('/login');
+              router.replace('/login');
             }}
             title="Đăng xuất"
             className="p-2 rounded-xl text-[#D7CCC8] hover:text-red-300 hover:bg-red-950/50 transition-colors"

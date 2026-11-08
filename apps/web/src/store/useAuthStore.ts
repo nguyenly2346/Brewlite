@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { api, UserProfile } from '../lib/api';
+import { useCartStore } from './useCartStore';
 
 interface AuthState {
   token: string | null;
@@ -21,14 +22,16 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       user: null,
       hydrated: false,
-      setAuth: (token, user) =>
+      setAuth: (token, user) => {
+        useCartStore.getState().switchOwner(user.id);
         set({
           token,
           user: {
             ...user,
             loyaltyPoints: user.role === 'ADMIN' ? 0 : user.loyaltyPoints,
           },
-        }),
+        });
+      },
       updateUserPoints: (loyaltyPoints) =>
         set((state) =>
           state.user
@@ -41,7 +44,10 @@ export const useAuthStore = create<AuthState>()(
               }
             : {},
         ),
-      logout: () => set({ token: null, user: null }),
+      logout: () => {
+        useCartStore.getState().switchOwner(null);
+        set({ token: null, user: null });
+      },
       refreshProfile: async () => {
         const currentToken = get().token;
         if (!currentToken) return;
@@ -55,6 +61,7 @@ export const useAuthStore = create<AuthState>()(
             },
           });
         } catch {
+          useCartStore.getState().switchOwner(null);
           set({ token: null, user: null });
         }
       },

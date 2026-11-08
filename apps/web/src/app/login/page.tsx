@@ -27,6 +27,8 @@ function LoginContent() {
       setAuth(res.accessToken, res.user);
       if (res.user.role === 'ADMIN' && redirectUrl === '/') {
         router.push('/admin');
+      } else if (res.user.role !== 'ADMIN' && redirectUrl.startsWith('/admin')) {
+        router.push('/');
       } else {
         router.push(redirectUrl);
       }
