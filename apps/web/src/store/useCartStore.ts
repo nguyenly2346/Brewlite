@@ -29,11 +29,19 @@ export interface AppliedPromo {
   maxDiscountAmount: number;
 }
 
+interface SavedCart {
+  items: CartItem[];
+  appliedPromo: AppliedPromo | null;
+  usePoints: boolean;
+}
+
 interface CartState {
   items: CartItem[];
   appliedPromo: AppliedPromo | null;
   usePoints: boolean;
   pendingOrderId: string | null;
+  ownerId: string | null;
+  savedCarts: Record<string, SavedCart>;
   addItem: (payload: {
     productId: string;
     productName: string;
@@ -52,6 +60,7 @@ interface CartState {
   setUsePoints: (use: boolean) => void;
   setPendingOrderId: (orderId: string | null) => void;
   clearCart: () => void;
+  switchOwner: (newOwnerId: string | null) => void;
   getSubtotal: () => number;
   getDiscountAmount: () => number;
   getTotal: () => number;
@@ -82,6 +91,8 @@ export const useCartStore = create<CartState>()(
       appliedPromo: null,
       usePoints: false,
       pendingOrderId: null,
+      ownerId: null,
+      savedCarts: {},
 
       addItem: ({
         productId,
@@ -188,6 +199,70 @@ export const useCartStore = create<CartState>()(
           pendingOrderId: null,
         }),
 
+      // Mỗi tài khoản có giỏ riêng: đăng xuất thì cất giỏ lại, đăng nhập lại thì lấy ra.
+      // Tài khoản mới (chưa có giỏ đã lưu) bắt đầu với giỏ trống.
+      switchOwner: (newOwnerId) => {
+        const state = get();
+        const current = state.ownerId;
+        if (current === newOwnerId) return;
+
+        const savedCarts: Record<string, SavedCart> = {
+          ...(state.savedCarts ?? {}),
+        };
+
+        // Cất giỏ hiện tại của tài khoản đang dùng
+        if (current !== null) {
+          savedCarts[current] = {
+            items: state.items,
+            appliedPromo: state.appliedPromo,
+            usePoints: state.usePoints,
+          };
+        }
+
+        let nextCart: SavedCart = {
+          items: [],
+          appliedPromo: null,
+          usePoints: false,
+        };
+
+        if (newOwnerId !== null) {
+          const saved = savedCarts[newOwnerId];
+          if (saved) {
+            nextCart = saved;
+            delete savedCarts[newOwnerId];
+          }
+          // Món khách bỏ vào giỏ khi chưa đăng nhập thì gộp vào giỏ của tài khoản
+          if (current === null && state.items.length > 0) {
+            const merged = [...nextCart.items];
+            for (const guestItem of state.items) {
+              const idx = merged.findIndex(
+                (i) => i.cartItemId === guestItem.cartItemId,
+              );
+              if (idx > -1) {
+                const qty = merged[idx].qty + guestItem.qty;
+                merged[idx] = {
+                  ...merged[idx],
+                  qty,
+                  lineTotal: merged[idx].unitPrice * qty,
+                };
+              } else {
+                merged.push(guestItem);
+              }
+            }
+            nextCart = { ...nextCart, items: merged };
+          }
+        }
+
+        set({
+          items: nextCart.items,
+          appliedPromo: nextCart.appliedPromo,
+          usePoints: nextCart.usePoints,
+          pendingOrderId: null,
+          ownerId: newOwnerId,
+          savedCarts,
+        });
+      },
+
       getSubtotal: () =>
         get().items.reduce((sum, item) => sum + item.lineTotal, 0),
 
@@ -222,7 +297,7 @@ export const useCartStore = create<CartState>()(
         get().items.reduce((sum, item) => sum + item.qty, 0),
     }),
     {
-      name: 'brewlite-cart-storage-v4',
+      name: 'brewlite-cart-storage-v5',
     },
   ),
 );

@@ -26,7 +26,7 @@ function RegisterContent() {
     try {
       const res = await api.register({ fullName, email, password });
       setAuth(res.accessToken, res.user);
-      router.push(redirectUrl);
+      router.push(redirectUrl.startsWith('/admin') ? '/' : redirectUrl);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Không thể đăng ký tài khoản',
