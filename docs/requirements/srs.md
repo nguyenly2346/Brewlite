@@ -40,3 +40,9 @@
 | **NFR-11** | Bảo trì/Kiểm thử | Có unit test cho nghiệp vụ quan trọng, integration test cho tạo đơn/thanh toán và ít nhất một E2E menu → xác nhận đơn. | Must | `npm test` và `npm run test:e2e` chạy qua. |
 | **NFR-12** | Khả năng mở rộng | Backend chia module theo domain (auth, products, orders, payments, promotions, admin). | Should | Mỗi domain là một NestJS module độc lập. |
 | **NFR-13** | Khả năng sử dụng | PWA đầy đủ (service worker, offline). | Could | Cài được app lên màn hình chính và mở menu khi offline. |
+
+## Use-case tổng quát
+
+![Use-case tổng quát](../diagrams/usecase-overview.svg)
+
+Nguồn: [`usecase-overview.puml`](../diagrams/usecase-overview.puml)
