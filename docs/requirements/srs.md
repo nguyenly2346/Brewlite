@@ -1,26 +1,6 @@
 # BrewLite — Đặc tả yêu cầu phần mềm rút gọn (SRS) — Task 1.2
 
-Phiên bản 1.0 · Nhóm 19 · Ưu tiên theo MoSCoW (Must / Should / Could / Won't).
-
-## 1. Use-case tổng quát
-
-![Use-case tổng quát](../diagrams/usecase-overview.svg)
-
-Nguồn: [`usecase-overview.puml`](../diagrams/usecase-overview.puml)
-
-| Mã UC | Tên use-case | Actor |
-| :--- | :--- | :--- |
-| UC-01 | Đặt và thanh toán đơn hàng *(đặc tả chi tiết ở [use-case-place-and-pay-order.md](use-case-place-and-pay-order.md))* | Khách hàng, Cổng thanh toán |
-| UC-02 | Xem menu và chi tiết sản phẩm | Khách hàng |
-| UC-03 | Quản lý giỏ hàng | Khách hàng |
-| UC-04 | Đăng ký / Đăng nhập | Khách hàng, Admin |
-| UC-05 | Áp mã khuyến mãi / dùng điểm thưởng | Khách hàng |
-| UC-06 | Xem xác nhận và lịch sử đơn | Khách hàng |
-| UC-07 | Cập nhật trạng thái đơn | Barista/Admin |
-| UC-08 | Quản lý sản phẩm, kho, công thức | Admin |
-| UC-09 | Xem thống kê | Admin |
-
-## 2. Yêu cầu chức năng
+## Yêu cầu chức năng
 
 | Mã | Yêu cầu | MoSCoW | Tiêu chí chấp nhận (kiểm chứng được) |
 | :--- | :--- | :-: | :--- |
@@ -43,7 +23,7 @@ Nguồn: [`usecase-overview.puml`](../diagrams/usecase-overview.puml)
 | **FR-17** | Thanh toán bằng cổng thật (Momo/VNPay/Stripe). | Won't | Ngoài phạm vi (xem context-and-scope §3.3). |
 | **FR-18** | Giao hàng tận nơi; thông báo đẩy. | Won't | Ngoài phạm vi MVP. |
 
-## 3. Yêu cầu phi chức năng
+## Yêu cầu phi chức năng
 
 | Mã | Nhóm | Yêu cầu | MoSCoW | Tiêu chí chấp nhận |
 | :--- | :--- | :--- | :-: | :--- |
@@ -60,3 +40,9 @@ Nguồn: [`usecase-overview.puml`](../diagrams/usecase-overview.puml)
 | **NFR-11** | Bảo trì/Kiểm thử | Có unit test cho nghiệp vụ quan trọng, integration test cho tạo đơn/thanh toán và ít nhất một E2E menu → xác nhận đơn. | Must | `npm test` và `npm run test:e2e` chạy qua. |
 | **NFR-12** | Khả năng mở rộng | Backend chia module theo domain (auth, products, orders, payments, promotions, admin). | Should | Mỗi domain là một NestJS module độc lập. |
 | **NFR-13** | Khả năng sử dụng | PWA đầy đủ (service worker, offline). | Could | Cài được app lên màn hình chính và mở menu khi offline. |
+
+## Use-case tổng quát
+
+![Use-case tổng quát](../diagrams/usecase-overview.svg)
+
+Nguồn: [`usecase-overview.puml`](../diagrams/usecase-overview.puml)
