@@ -1,0 +1,62 @@
+@startuml deployment-diagram
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam nodeFontStyle bold
+skinparam rectangle {
+  BorderStyle dashed
+}
+
+node "Thiết bị người dùng" as DEV_USER {
+  node "Trình duyệt / PWA\n(Chrome, Edge, Firefox, Safari)\nmanifest.json" as BROWSER
+}
+
+rectangle "LOCAL (máy lập trình viên)" as LOCAL {
+  node "Docker Compose" as DC {
+    node "brewlite-frontend\n:3000" as L_WEB
+    node "brewlite-backend\n:4000" as L_API
+    database "brewlite-db (postgres:16-alpine)\n:5432 + volume postgres_data" as L_DB
+  }
+  artifact ".env\n(từ .env.example)" as L_ENV
+}
+
+rectangle "CI (GitHub Actions)" as CI {
+  node "Runner ubuntu-latest" as RUNNER {
+    component "ci.yml\nLint · Test · Build" as CI_JOB
+    component "cd.yml\nBuild image · Push · Deploy · Smoke test" as CD_JOB
+    database "postgres:16-alpine\n(service container)" as CI_DB
+  }
+  artifact "GitHub Secrets\nPROD_API_URL, DEPLOY_HOOK_*,\nREGISTRY_TOKEN" as GH_SECRET
+  node "Container Registry\n(GHCR: ghcr.io/<org>/brewlite-*)\ntag = commit SHA / vX.Y.Z" as REGISTRY
+}
+
+rectangle "PRODUCTION (Render)" as PROD {
+  node "Render Web Service: brewlite-web\n(container Next.js)\n:3000" as P_WEB {
+    artifact "ENV: NEXT_PUBLIC_API_URL" as P_WEB_ENV
+  }
+  node "Render Web Service: brewlite-api\n(container NestJS)\n:4000 · Health check: GET /health" as P_API {
+    artifact "ENV/Secret: DATABASE_URL,\nJWT_SECRET, FRONTEND_URL, PORT" as P_API_ENV
+    component "stdout/stderr logs" as P_LOG
+  }
+  database "Render PostgreSQL 16\n:5432 · Persistent disk\n(chỉ Internal URL, không public)" as P_DB
+}
+
+BROWSER --> P_WEB : HTTPS 443 (tải Next.js/PWA)
+BROWSER --> P_API : HTTPS 443 (REST/JSON + JWT)
+P_API --> P_DB : TCP 5432\nmạng nội bộ (Prisma)
+
+P_API_ENV ..> P_API : nạp lúc khởi động
+P_WEB_ENV ..> P_WEB : nạp lúc build
+
+L_WEB --> L_API : HTTP :4000
+L_API --> L_DB : TCP 5432
+L_ENV ..> DC
+
+CI_JOB --> CI_DB : TCP 5432 (prisma push, test)
+CD_JOB --> REGISTRY : docker push
+GH_SECRET ..> CD_JOB : inject secret
+REGISTRY --> P_WEB : pull image (deploy)
+REGISTRY --> P_API : pull image (deploy)
+CD_JOB --> P_API : smoke test\nGET /health, GET /products
+
+L_ENV -[hidden]right- GH_SECRET
+@enduml
