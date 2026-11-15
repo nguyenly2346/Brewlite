@@ -51,6 +51,7 @@ export interface Product {
   price: number;
   imageUrl: string;
   version: number;
+  stock?: number;
   isAvailable: boolean;
   recipes?: RecipeItem[];
 }
