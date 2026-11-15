@@ -86,6 +86,7 @@ export class ProductsService {
         category: dto.category.trim(),
         price: dto.price,
         imageUrl: dto.imageUrl.trim(),
+        ...(dto.stock !== undefined ? { stock: dto.stock } : {}),
         isAvailable: dto.isAvailable ?? true,
       },
       include: {
@@ -113,6 +114,7 @@ export class ProductsService {
         ...(dto.category !== undefined ? { category: dto.category.trim() } : {}),
         ...(dto.price !== undefined ? { price: dto.price } : {}),
         ...(dto.imageUrl !== undefined ? { imageUrl: dto.imageUrl.trim() } : {}),
+        ...(dto.stock !== undefined ? { stock: dto.stock } : {}),
         ...(dto.isAvailable !== undefined ? { isAvailable: dto.isAvailable } : {}),
         version: { increment: 1 },
       },
