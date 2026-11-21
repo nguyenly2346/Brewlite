@@ -26,4 +26,5 @@ jobs:
       - name: Run Smoke Test against Health Endpoint
         run: |
           chmod +x tests/smoke-test.sh
+          ./tests/smoke-test.sh "${{ secrets.PROD_API_URL }}"
           echo "Quality Gate verified for deployment release tag: ${{ github.ref_name }}"
