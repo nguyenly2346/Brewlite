@@ -281,20 +281,60 @@ export class OrdersService {
         }
       }
 
+      
       if (dto.status === OrderStatus.PREPARING && tx.recipe && tx.ingredient) {
         for (const item of order.items) {
           if (!item.inventoryDeducted) {
+            // Đánh dấu OrderItem đã được xử lý để tránh trừ kho hai lần.
+            const claimedItem = await tx.orderItem.updateMany({
+              where: {
+                id: item.id,
+                inventoryDeducted: false,
+              },
+              data: {
+                inventoryDeducted: true,
+                kdsStartedAt: new Date(),
+              },
+            });
+
+            // Đơn hàng đã được xử lý bởi giao dịch khác.
+            if (claimedItem.count === 0) {
+              continue;
+            }
+
             const recipes = await tx.recipe.findMany({
               where: { productId: item.productId },
             });
+
             for (const r of recipes) {
               const deductAmount = r.quantityNeeded * item.qty;
-              const updatedIng = await tx.ingredient.update({
-                where: { id: r.ingredientId },
+
+              // Chỉ trừ kho nếu số lượng hiện tại đủ đáp ứng.
+              const result = await tx.ingredient.updateMany({
+                where: {
+                  id: r.ingredientId,
+                  currentStock: { gte: deductAmount },
+                },
                 data: {
                   currentStock: { decrement: deductAmount },
                 },
               });
+
+              // Không đủ nguyên liệu: rollback toàn bộ transaction.
+              if (result.count === 0) {
+                throw new ConflictException(
+                  'OPT_LOCK_CONFLICT: Nguyên liệu không đủ tồn kho',
+                );
+              }
+
+              const updatedIng = await tx.ingredient.findUnique({
+                where: { id: r.ingredientId },
+              });
+
+              if (!updatedIng) {
+                throw new NotFoundException('Không tìm thấy nguyên liệu');
+              }
+
               await tx.inventoryTransaction.create({
                 data: {
                   ingredientId: r.ingredientId,
@@ -307,13 +347,6 @@ export class OrdersService {
                 },
               });
             }
-            await tx.orderItem.update({
-              where: { id: item.id },
-              data: {
-                inventoryDeducted: true,
-                kdsStartedAt: new Date(),
-              },
-            });
           }
         }
       }

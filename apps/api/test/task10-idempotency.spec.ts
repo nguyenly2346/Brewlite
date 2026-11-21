@@ -2,6 +2,7 @@ import { OrderStatus, PaymentMethod, PaymentStatus, UserRole } from '@prisma/cli
 import { PaymentsService } from '../src/payments/payments.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { AuthenticatedUser } from '../src/common/decorators';
+import { MockPaymentGateway } from '../src/payments/gateways/mock-payment.gateway';
 
 interface InMemoryPayment {
   id: string;
@@ -115,7 +116,10 @@ describe('Task 10.2 & 10.4 - Payment Idempotency & Atomic Loyalty Points', () =>
       $transaction: jest.fn(async (cb: (tx: typeof txClient) => Promise<unknown>) => cb(txClient)),
     } as unknown as PrismaService;
 
-    paymentsService = new PaymentsService(mockPrisma);
+    paymentsService = new PaymentsService(
+    mockPrisma,
+    new MockPaymentGateway(),
+    );
   });
 
   it('processes payment once and returns idempotent response on duplicate Idempotency-Key without double-charging or double-adding loyalty points', async () => {
