@@ -1,15 +1,23 @@
+
 name: BrewLite CD Pipeline & Production Delivery
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
     branches:
       - main
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 jobs:
   delivery:
-    name: Build, Containerize & Deploy to Production
+    name: Build, Test & Deploy to Production
     runs-on: ubuntu-latest
 
     steps:
@@ -19,12 +27,65 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker Images Locally
+      - name: Build Docker Images
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
         run: |
-          docker compose build --build-arg NEXT_PUBLIC_API_URL=${{ secrets.PROD_API_URL || 'http://localhost:4000' }}
+          docker compose build \
+            --build-arg NEXT_PUBLIC_API_URL="${PROD_API_URL:-http://localhost:4000}"
 
-      - name: Run Smoke Test against Health Endpoint
+      - name: Trigger Render Deployment
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Missing RENDER_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+
+          curl --fail --show-error --silent \
+            --retry 3 \
+            --retry-delay 5 \
+            --request POST \
+            "$RENDER_DEPLOY_HOOK_URL"
+
+      - name: Wait for Production API
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          set -e
+
+          if [ -z "$PROD_API_URL" ]; then
+            echo "Missing PROD_API_URL"
+            exit 1
+          fi
+
+          for i in $(seq 1 60); do
+            STATUS=$(curl -L -s -o /dev/null \
+              -w "%{http_code}" \
+              --max-time 20 \
+              "$PROD_API_URL/health" || true)
+
+            if [ "$STATUS" = "200" ]; then
+              echo "API is responding."
+              exit 0
+            fi
+
+            echo "Waiting for API... attempt $i"
+            sleep 10
+          done
+
+          echo "Production API health check timed out."
+          exit 1
+
+      - name: Run Production Smoke Tests
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
         run: |
           chmod +x tests/smoke-test.sh
-          ./tests/smoke-test.sh "${{ secrets.PROD_API_URL }}"
-          echo "Quality Gate verified for deployment release tag: ${{ github.ref_name }}"
+          ./tests/smoke-test.sh "$PROD_API_URL"
+
+      - name: Deployment Summary
+        run: |
+          echo "BrewLite production deployment checks passed."
+          echo "Release ref: ${{ github.ref_name }}"
