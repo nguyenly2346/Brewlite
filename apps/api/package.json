@@ -11,8 +11,8 @@
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
     "seed": "ts-node --transpile-only prisma/seed.ts",
-    "test": "jest --runInBand --testPathIgnorePatterns=checkout-flow.e2e.spec.ts",
-    "test:e2e": "jest --runInBand checkout-flow.e2e.spec.ts"
+    "test": "jest --runInBand --testPathIgnorePatterns=e2e.spec.ts",
+    "test:e2e": "jest --runInBand --testPathPattern=e2e.spec.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
