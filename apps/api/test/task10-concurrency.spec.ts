@@ -233,6 +233,12 @@ describe('Task 10.3 - Đặt đơn đồng thời không vượt tồn kho (opti
     ]);
 
     const order = await service.createOrder('user-1', orderDto('prod-4', 3));
+
+    expect(order).toBeDefined();
+    if (!order) {
+      throw new Error('Order was not created');
+    }
+
     expect(products.get('prod-4')!.stock).toBe(2);
 
     await service.updateOrderStatus(order.id, { status: OrderStatus.CANCELLED });

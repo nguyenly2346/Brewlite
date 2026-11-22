@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,10 +10,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProcessPaymentDto } from './payments.dto';
 import { assertTransition } from '../orders/order-state-machine';
 import { AuthenticatedUser } from '../common/decorators';
+import {PAYMENT_GATEWAY,PaymentGateway,} from './interfaces/payment-gateway.interface';
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(PAYMENT_GATEWAY) 
+    private readonly paymentGateway: PaymentGateway,
+  ) {}
 
   async processPayment(
     user: AuthenticatedUser,
@@ -86,7 +92,13 @@ export class PaymentsService {
         throw new ForbiddenException('Bạn không có quyền thanh toán cho đơn hàng này');
       }
 
-      if (dto.simulateFailure) {
+      const gatewayResult = await this.paymentGateway.charge(
+        order.total,
+        dto.method,
+        dto.simulateFailure,
+      );
+
+      if (!gatewayResult.success) {
         assertTransition(order.status, OrderStatus.PAYMENT_FAILED);
 
         const failedPayment = await tx.payment.create({
@@ -96,7 +108,8 @@ export class PaymentsService {
             amount: order.total,
             method: dto.method,
             status: PaymentStatus.FAILED,
-            errorMessage: 'Giao dịch bị từ chối bởi cổng thanh toán (Mô phỏng lỗi PAYMENT_FAILED)',
+            errorMessage:
+              gatewayResult.errorMessage || 'Giao dịch thanh toán thất bại',
           },
         });
 
