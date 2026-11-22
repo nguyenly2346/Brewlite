@@ -24,6 +24,12 @@ export class CreateProductDto {
   imageUrl!: string;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0, { message: 'Tồn kho không được âm' })
+  stock?: number;
+
+  @IsOptional()
   @IsBoolean()
   isAvailable?: boolean;
 }
@@ -50,6 +56,12 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0, { message: 'Tồn kho không được âm' })
+  stock?: number;
 
   @IsOptional()
   @IsBoolean()

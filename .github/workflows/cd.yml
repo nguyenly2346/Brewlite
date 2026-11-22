@@ -2,28 +2,204 @@ name: BrewLite CD Pipeline & Production Delivery
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
-    branches:
-      - main
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/brewlite
 
 jobs:
-  delivery:
-    name: Build, Containerize & Deploy to Production
+  build-push:
+    name: Build and push images to GHCR
     runs-on: ubuntu-latest
-
+    outputs:
+      sha_tag: ${{ steps.meta.outputs.sha_tag }}
+      semver: ${{ steps.meta.outputs.semver }}
     steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker Images Locally
+      - name: Compute tags
+        id: meta
         run: |
-          docker compose build --build-arg NEXT_PUBLIC_API_URL=${{ secrets.PROD_API_URL || 'http://localhost:4000' }}
+          echo "sha_tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "semver=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "semver=" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Run Smoke Test against Health Endpoint
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API (tag = commit SHA)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/api
+          push: true
+          tags: ${{ env.IMAGE_PREFIX }}-api:${{ steps.meta.outputs.sha_tag }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build and push Web (tag = commit SHA)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./apps/web
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.PROD_API_URL || 'http://localhost:4000' }}
+          tags: ${{ env.IMAGE_PREFIX }}-web:${{ steps.meta.outputs.sha_tag }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  verify:
+    name: Migrate, deploy and smoke test (real containers)
+    needs: build-push
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: ${{ needs.build-push.outputs.sha_tag }}
+      DATABASE_URL: postgresql://brewlite:brewlite_password@localhost:5432/brewlite_db?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Start database
+        run: |
+          docker compose -f docker-compose.cd.yml up -d db
+          for i in $(seq 1 30); do
+            docker compose -f docker-compose.cd.yml exec -T db pg_isready -U brewlite -d brewlite_db && break
+            sleep 2
+          done
+
+      - name: Prisma migrate deploy (run by the workflow)
+        run: |
+          docker run --rm --network host -e DATABASE_URL="$DATABASE_URL" \
+            ${{ env.IMAGE_PREFIX }}-api:${{ env.IMAGE_TAG }} \
+            npx prisma migrate deploy
+
+      - name: Deploy API and Web
+        run: |
+          docker compose -f docker-compose.cd.yml up -d backend frontend
+
+      - name: Smoke test (real endpoints)
         run: |
           chmod +x tests/smoke-test.sh
-          echo "Quality Gate verified for deployment release tag: ${{ github.ref_name }}"
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:4000/health >/dev/null && break
+            sleep 3
+          done
+          ./tests/smoke-test.sh http://localhost:4000
+          curl -fs -o /dev/null http://localhost:3000/
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.cd.yml logs --tail=100
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.cd.yml down -v
+
+  release:
+    name: Promote verified images (latest / semver)
+    needs: [build-push, verify]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Retag verified SHA images
+        run: |
+          for svc in api web; do
+            SRC=${IMAGE_PREFIX}-${svc}:${{ needs.build-push.outputs.sha_tag }}
+            docker buildx imagetools create -t ${IMAGE_PREFIX}-${svc}:latest "$SRC"
+            if [ -n "${{ needs.build-push.outputs.semver }}" ]; then
+              docker buildx imagetools create -t ${IMAGE_PREFIX}-${svc}:${{ needs.build-push.outputs.semver }} "$SRC"
+            fi
+          done
+
+  deploy:
+    name: Deploy to Render and smoke test production
+    needs: [build-push, release]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trigger Render Deployment
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Missing RENDER_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+
+          curl --fail --show-error --silent \
+            --retry 3 \
+            --retry-delay 5 \
+            --request POST \
+            "$RENDER_DEPLOY_HOOK_URL"
+
+      - name: Wait for Production API
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          set -e
+
+          if [ -z "$PROD_API_URL" ]; then
+            echo "Missing PROD_API_URL"
+            exit 1
+          fi
+
+          for i in $(seq 1 60); do
+            STATUS=$(curl -L -s -o /dev/null \
+              -w "%{http_code}" \
+              --max-time 20 \
+              "$PROD_API_URL/health" || true)
+
+            if [ "$STATUS" = "200" ]; then
+              echo "API is responding."
+              exit 0
+            fi
+
+            echo "Waiting for API... attempt $i"
+            sleep 10
+          done
+
+          echo "Production API health check timed out."
+          exit 1
+
+      - name: Run Production Smoke Tests
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          chmod +x tests/smoke-test.sh
+          ./tests/smoke-test.sh "$PROD_API_URL"
+
+      - name: Deployment Summary
+        run: |
+          echo "BrewLite production deployment checks passed."
+          echo "Release ref: ${{ github.ref_name }}"
+          echo "Image tag: ${{ needs.build-push.outputs.sha_tag }}"

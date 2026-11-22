@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brewlite
+      POSTGRES_PASSWORD: brewlite_password
+      POSTGRES_DB: brewlite_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    image: ghcr.io/${GHCR_OWNER:-nguyenly2346}/brewlite-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://brewlite:brewlite_password@db:5432/brewlite_db?schema=public
+      JWT_SECRET: ${JWT_SECRET:-brewlite_super_secret_jwt_key_2026}
+      PORT: 4000
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    # Migration do workflow chay (prisma migrate deploy), nen chi start app
+    command: ["sh", "-c", "node dist/main.js || node dist/src/main.js"]
+    depends_on:
+      - db
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER:-nguyenly2346}/brewlite-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

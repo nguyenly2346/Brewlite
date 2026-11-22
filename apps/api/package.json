@@ -11,6 +11,7 @@
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
     "seed": "ts-node --transpile-only prisma/seed.ts",
+    "pretest": "prisma generate",
     "test": "jest --runInBand --testPathIgnorePatterns=e2e.spec.ts",
     "test:e2e": "jest --runInBand --testPathPattern=e2e.spec.ts"
   },
@@ -64,5 +65,11 @@
     ],
     "coverageDirectory": "./coverage",
     "testEnvironment": "node"
+  },
+  "allowScripts": {
+    "@nestjs/core@10.4.22": true,
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "prisma@5.22.0": true
   }
 }
