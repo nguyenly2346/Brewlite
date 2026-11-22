@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { OrderStatus, PaymentMethod, PaymentStatus, UserRole } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { OrdersService } from '../src/orders/orders.service';
 import { PaymentsService } from '../src/payments/payments.service';
 import { PromotionsService } from '../src/promotions/promotions.service';
+import { MockPaymentGateway } from '../src/payments/gateways/mock-payment.gateway';
 import { CreateOrderDto } from '../src/orders/orders.dto';
 import { ProcessPaymentDto } from '../src/payments/payments.dto';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -42,13 +43,21 @@ const admin: AuthenticatedUser = { ...customer, id: 'u-admin', role: UserRole.AD
 /* ------------------------------------------------------------------ */
 /* Helper: OrdersService với Prisma giả                                */
 /* ------------------------------------------------------------------ */
-function makeOrders(opts: { products?: Record<string, any>; toppings?: any[]; promo?: any; user?: any } = {}) {
+function makeOrders(
+  opts: { products?: Record<string, any>; toppings?: any[]; promo?: any; user?: any; reserve?: (call: number) => number } = {},
+) {
+  let reserveCalls = 0;
+  // updateMany giữ chỗ tồn kho: count = 1 là thành công, 0 là xung đột version
+  const productUpdateMany = jest.fn(async (_: any) => ({ count: opts.reserve ? opts.reserve(++reserveCalls) : 1 }));
   const userUpdate = jest.fn(async (_: any) => ({}));
   const loyaltyCreate = jest.fn(async (_: any) => ({}));
   const promoFind = jest.fn(async (_: any) => opts.promo ?? null);
   const tx = {
     topping: { findMany: jest.fn(async (_: any) => opts.toppings ?? []) },
-    product: { findUnique: jest.fn(async ({ where }: any) => opts.products?.[where.id] ?? null) },
+    product: {
+      findUnique: jest.fn(async ({ where }: any) => opts.products?.[where.id] ?? null),
+      updateMany: productUpdateMany,
+    },
     promotion: { findUnique: promoFind },
     user: { findUnique: jest.fn(async (_: any) => opts.user ?? null), update: userUpdate },
     order: {
@@ -58,13 +67,13 @@ function makeOrders(opts: { products?: Record<string, any>; toppings?: any[]; pr
     loyaltyTransaction: { create: loyaltyCreate },
   };
   const prisma = { $transaction: jest.fn(async (cb: any) => cb(tx)) } as unknown as PrismaService;
-  return { service: new OrdersService(prisma), userUpdate, loyaltyCreate, promoFind };
+  return { service: new OrdersService(prisma), userUpdate, loyaltyCreate, promoFind, productUpdateMany };
 }
 
 const PRODUCTS = {
-  p30: { id: 'p30', name: 'Cà phê sữa', price: 30000, isAvailable: true },
-  p50: { id: 'p50', name: 'Latte', price: 50000, isAvailable: true },
-  off: { id: 'off', name: 'Hết hàng', price: 30000, isAvailable: false },
+  p30: { id: 'p30', name: 'Cà phê sữa', price: 30000, isAvailable: true, stock: 100, version: 1 },
+  p50: { id: 'p50', name: 'Latte', price: 50000, isAvailable: true, stock: 100, version: 1 },
+  off: { id: 'off', name: 'Hết hàng', price: 30000, isAvailable: false, stock: 100, version: 1 },
 };
 const item = (productId: string, size: any, qty: number, toppingIds: string[] = []) => ({
   productId, size, qty, toppingIds,
@@ -156,7 +165,7 @@ describe('Voucher khi tạo đơn', () => {
   });
 
   it('đúng ngưỡng tối thiểu 40k vẫn được áp (đơn 40k -> giảm 4k)', async () => {
-    const ctx = makeOrders({ products: { p40: { id: 'p40', name: 'X', price: 40000, isAvailable: true } }, promo: BREWLITE10 });
+    const ctx = makeOrders({ products: { p40: { id: 'p40', name: 'X', price: 40000, isAvailable: true, stock: 100, version: 1 } }, promo: BREWLITE10 });
     const order: any = await ctx.service.createOrder(customer.id, { items: [item('p40', 'S', 1)], promotionCode: 'BREWLITE10' } as any);
     expect(order.discountAmount).toBe(4000);
   });
@@ -310,7 +319,7 @@ describe('Điểm thưởng - DÙNG điểm khi tạo đơn (1 điểm = 1đ)', 
 
 /* ------------------------------------------------------------------ */
 describe('Điểm thưởng - TÍCH điểm khi thanh toán (5% hóa đơn) và thanh toán lỗi', () => {
-  function makePayments(order: any) {
+  function makePayments(order: any, gateway: any = new MockPaymentGateway()) {
     const userUpdate = jest.fn(async (_: any) => ({}));
     const loyaltyCreate = jest.fn(async (_: any) => ({}));
     const tx = {
@@ -326,7 +335,7 @@ describe('Điểm thưởng - TÍCH điểm khi thanh toán (5% hóa đơn) và 
       loyaltyTransaction: { create: loyaltyCreate },
     };
     const prisma = { payment: tx.payment, $transaction: jest.fn(async (cb: any) => cb(tx)) } as unknown as PrismaService;
-    return { service: new PaymentsService(prisma), userUpdate, loyaltyCreate };
+    return { service: new PaymentsService(prisma, gateway), userUpdate, loyaltyCreate };
   }
   const orderOf = (total: number, status: OrderStatus = OrderStatus.PENDING, userId = customer.id) => ({
     id: 'o1', orderCode: '#1', userId, status, total, items: [],
@@ -395,6 +404,24 @@ describe('Điểm thưởng - TÍCH điểm khi thanh toán (5% hóa đơn) và 
     await expect(c.service.processPayment(customer, pay(), 'key-6')).rejects.toThrow(ForbiddenException);
   });
 
+  it('cổng thanh toán từ chối -> payment FAILED kèm thông báo của cổng, không tích điểm', async () => {
+    const gateway = { charge: jest.fn(async () => ({ success: false, errorMessage: 'Thẻ hết hạn' })) };
+    const c = makePayments(orderOf(85000), gateway);
+    const r = await c.service.processPayment(customer, pay(), 'key-gw');
+    expect(gateway.charge).toHaveBeenCalledWith(85000, PaymentMethod.WALLET, undefined);
+    expect(r.payment.status).toBe(PaymentStatus.FAILED);
+    expect(r.payment.errorMessage).toBe('Thẻ hết hạn');
+    expect(r.order.status).toBe(OrderStatus.PAYMENT_FAILED);
+    expect(c.userUpdate).not.toHaveBeenCalled();
+  });
+
+  it('simulateFailure được chuyển xuống cổng thanh toán', async () => {
+    const gateway = { charge: jest.fn(async () => ({ success: false, errorMessage: 'x' })) };
+    const c = makePayments(orderOf(85000), gateway);
+    await c.service.processPayment(customer, pay({ simulateFailure: true }), 'key-gw2');
+    expect(gateway.charge).toHaveBeenCalledWith(85000, PaymentMethod.WALLET, true);
+  });
+
   it.each([OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.COMPLETED])(
     'thanh toán đơn đã %s với key mới -> BadRequest (không trừ tiền 2 lần)',
     async (status) => {
@@ -403,6 +430,60 @@ describe('Điểm thưởng - TÍCH điểm khi thanh toán (5% hóa đơn) và 
       expect(c.userUpdate).not.toHaveBeenCalled();
     },
   );
+});
+
+/* ------------------------------------------------------------------ */
+describe('Giữ chỗ tồn kho khi tạo đơn (optimistic locking)', () => {
+  const run = (ctx: ReturnType<typeof makeOrders>, qty = 2) =>
+    ctx.service.createOrder(customer.id, { items: [item('p30', 'S', qty)] } as any) as Promise<any>;
+
+  it('giữ chỗ đúng điều kiện (id + version + stock đủ), trừ stock và tăng version', async () => {
+    const ctx = makeOrders({ products: PRODUCTS });
+    await run(ctx, 3);
+    expect(ctx.productUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'p30', version: 1, stock: { gte: 3 } },
+      data: { stock: { decrement: 3 }, version: { increment: 1 } },
+    });
+  });
+
+  it('tồn kho không đủ -> ConflictException, không giữ chỗ', async () => {
+    const ctx = makeOrders({ products: { p30: { ...PRODUCTS.p30, stock: 1 } } });
+    await expect(run(ctx, 2)).rejects.toThrow(ConflictException);
+    expect(ctx.productUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it('xung đột version lần đầu -> tự thử lại và đặt đơn thành công', async () => {
+    const ctx = makeOrders({ products: PRODUCTS, reserve: (n) => (n === 1 ? 0 : 1) });
+    const order = await run(ctx);
+    expect(order.status).toBe(OrderStatus.PENDING);
+    expect(ctx.productUpdateMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('xung đột liên tục -> ConflictException sau 10 lần thử', async () => {
+    const ctx = makeOrders({ products: PRODUCTS, reserve: () => 0 });
+    await expect(run(ctx)).rejects.toThrow(ConflictException);
+    expect(ctx.productUpdateMany).toHaveBeenCalledTimes(10);
+  });
+
+  it('hủy đơn hoàn lại tồn kho đã giữ chỗ', async () => {
+    const productUpdateMany = jest.fn(async (_: any) => ({ count: 1 }));
+    const tx = {
+      order: {
+        findUnique: jest.fn(async () => ({
+          id: 'o1', status: OrderStatus.PENDING, pointsUsed: 0, userId: customer.id,
+          items: [{ productId: 'p30', qty: 2 }],
+        })),
+        update: jest.fn(async ({ data }: any) => ({ id: 'o1', ...data })),
+      },
+      product: { updateMany: productUpdateMany },
+    };
+    const prisma = { $transaction: jest.fn(async (cb: any) => cb(tx)) } as unknown as PrismaService;
+    await new OrdersService(prisma).updateOrderStatus('o1', { status: OrderStatus.CANCELLED });
+    expect(productUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'p30' },
+      data: { stock: { increment: 2 }, version: { increment: 1 } },
+    });
+  });
 });
 
 /* ------------------------------------------------------------------ */
