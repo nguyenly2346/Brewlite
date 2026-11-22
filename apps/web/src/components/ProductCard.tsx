@@ -15,7 +15,7 @@ export function ProductCard({ product, onQuickAdd }: ProductCardProps) {
     product.imageUrl || FALLBACK_COFFEE_IMAGE,
   );
 
-  const isOutOfStock = !product.isAvailable;
+  const isOutOfStock = !product.isAvailable || (product.stock ?? 1) <= 0;
 
   return (
     <div className="flex flex-col h-full bg-white border border-[#E6DCD2] rounded-2xl shadow-sm hover:shadow-xl hover:border-[#8D6E63]/50 transition-all duration-300 overflow-hidden group">
