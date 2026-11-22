@@ -2,7 +2,7 @@ name: BrewLite CD
 
 on:
   push:
-    branches: [main]
+    branches: [main, 4_cd_real]
     tags: ['v*.*.*']
   workflow_dispatch:
 
