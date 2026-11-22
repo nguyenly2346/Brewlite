@@ -25,20 +25,26 @@ describe('Task 10 - PostgreSQL concurrency integration test', () => {
     const databaseUrl = process.env.DATABASE_URL;
 
     if (!databaseUrl) {
-      throw new Error('DATABASE_URL chưa được thiết lập');
+      throw new Error('DATABASE_URL is not configured');
     }
 
     const parsedUrl = new URL(databaseUrl);
 
-    // Chặn tuyệt đối việc chạy test nhầm vào Neon production.
-    if (
-      parsedUrl.hostname !== 'localhost' ||
-      parsedUrl.port !== '5433' ||
-      parsedUrl.pathname !== '/brewlite_concurrency_test'
-    ) {
+    const isLocalTestDatabase =
+      parsedUrl.hostname === 'localhost' &&
+      parsedUrl.port === '5433' &&
+      parsedUrl.pathname === '/brewlite_concurrency_test';
+
+    const isGitHubActionsTestDatabase =
+      process.env.GITHUB_ACTIONS === 'true' &&
+      parsedUrl.hostname === 'localhost' &&
+      parsedUrl.port === '5432' &&
+      parsedUrl.pathname === '/brewlite_db';
+
+    if (!isLocalTestDatabase && !isGitHubActionsTestDatabase) {
       throw new Error(
-        'SAFETY CHECK: Test chỉ được chạy trên brewlite_concurrency_test tại localhost:5433',
-      );
+        'SAFETY CHECK: Only local test database or GitHub Actions test database is allowed',
+        );
     }
 
     prisma = new PrismaClient();
@@ -48,7 +54,6 @@ describe('Task 10 - PostgreSQL concurrency integration test', () => {
       prisma as unknown as PrismaService,
     );
   });
-
   afterEach(async () => {
     if (!prisma) return;
 
