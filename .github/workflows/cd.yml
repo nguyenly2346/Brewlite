@@ -1,4 +1,4 @@
-name: BrewLite CD
+name: BrewLite CD Pipeline & Production Delivery
 
 on:
   push:
@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
   packages: write
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -136,27 +140,66 @@ jobs:
           done
 
   deploy:
-    name: Deploy to server over SSH (with rollback)
+    name: Deploy to Render and smoke test production
     needs: [build-push, release]
     runs-on: ubuntu-latest
-    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    if: ${{ github.event_name != 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy, smoke test, rollback on failure
+
+      - name: Trigger Render Deployment
         env:
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          HOST: ${{ secrets.DEPLOY_HOST }}
-          USER_NAME: ${{ secrets.DEPLOY_USER }}
-          NEW_TAG: ${{ needs.build-push.outputs.sha_tag }}
-          PROD_URL: ${{ secrets.PROD_API_URL }}
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
-          install -m 600 /dev/null key && echo "$SSH_KEY" > key
-          SSH="ssh -i key -o StrictHostKeyChecking=no $USER_NAME@$HOST"
-          scp -i key -o StrictHostKeyChecking=no docker-compose.cd.yml $USER_NAME@$HOST:~/brewlite/docker-compose.cd.yml
-          $SSH "cd ~/brewlite && PREV=\$(cat .current_tag 2>/dev/null || echo latest) && \
-            IMAGE_TAG=$NEW_TAG docker compose -f docker-compose.cd.yml pull && \
-            IMAGE_TAG=$NEW_TAG docker compose -f docker-compose.cd.yml run --rm backend npx prisma migrate deploy && \
-            IMAGE_TAG=$NEW_TAG docker compose -f docker-compose.cd.yml up -d && \
-            sleep 15 && \
-            (curl -fs $PROD_URL/health && curl -fs $PROD_URL/products >/dev/null && echo $NEW_TAG > .current_tag) || \
-            (echo 'Smoke failed, rolling back to '\$PREV && IMAGE_TAG=\$PREV docker compose -f docker-compose.cd.yml up -d && exit 1)"
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Missing RENDER_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+
+          curl --fail --show-error --silent \
+            --retry 3 \
+            --retry-delay 5 \
+            --request POST \
+            "$RENDER_DEPLOY_HOOK_URL"
+
+      - name: Wait for Production API
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          set -e
+
+          if [ -z "$PROD_API_URL" ]; then
+            echo "Missing PROD_API_URL"
+            exit 1
+          fi
+
+          for i in $(seq 1 60); do
+            STATUS=$(curl -L -s -o /dev/null \
+              -w "%{http_code}" \
+              --max-time 20 \
+              "$PROD_API_URL/health" || true)
+
+            if [ "$STATUS" = "200" ]; then
+              echo "API is responding."
+              exit 0
+            fi
+
+            echo "Waiting for API... attempt $i"
+            sleep 10
+          done
+
+          echo "Production API health check timed out."
+          exit 1
+
+      - name: Run Production Smoke Tests
+        env:
+          PROD_API_URL: ${{ secrets.PROD_API_URL }}
+        run: |
+          chmod +x tests/smoke-test.sh
+          ./tests/smoke-test.sh "$PROD_API_URL"
+
+      - name: Deployment Summary
+        run: |
+          echo "BrewLite production deployment checks passed."
+          echo "Release ref: ${{ github.ref_name }}"
+          echo "Image tag: ${{ needs.build-push.outputs.sha_tag }}"

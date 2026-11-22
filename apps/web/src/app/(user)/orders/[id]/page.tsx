@@ -40,8 +40,17 @@ export default function OrderDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryingPayment, setRetryingPayment] = useState<boolean>(false);
 
+  const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [cancellingOrder, setCancellingOrder] = useState<boolean>(false);
+
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
   const [toastProgress, setToastProgress] = useState<number>(100);
+
+  const canCancelOrder =
+    order?.status === 'PENDING' ||
+    order?.status === 'PAYMENT_FAILED' ||
+    order?.status === 'PAID';
 
   const triggerPaymentSuccessToast = () => {
     setShowSuccessToast(true);
@@ -160,9 +169,9 @@ export default function OrderDetailPage() {
       : 'Ví điện tử (MoMo / VNPay)';
   const pointsEarned =
     order.status === 'PENDING' ||
-    order.status === 'PAYMENT_FAILED' ||
-    order.status === 'CANCELLED' ||
-    user?.role === 'ADMIN'
+      order.status === 'PAYMENT_FAILED' ||
+      order.status === 'CANCELLED' ||
+      user?.role === 'ADMIN'
       ? 0
       : Math.floor(order.total * 0.05);
 
@@ -229,14 +238,13 @@ export default function OrderDetailPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#E6DCD2]">
           <div className="flex items-start gap-4">
             <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                order.status === 'PAYMENT_FAILED' || order.status === 'CANCELLED'
-                  ? 'bg-red-50 text-red-600'
-                  : 'bg-amber-50 text-[#3E2723]'
-              }`}
+              className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${order.status === 'PAYMENT_FAILED' || order.status === 'CANCELLED'
+                ? 'bg-red-50 text-red-600'
+                : 'bg-amber-50 text-[#3E2723]'
+                }`}
             >
               {order.status === 'PAYMENT_FAILED' ||
-              order.status === 'CANCELLED' ? (
+                order.status === 'CANCELLED' ? (
                 <AlertTriangle className="w-6 h-6" />
               ) : (
                 <CheckCircle2 className="w-6 h-6 text-[#3E2723]" />
@@ -258,20 +266,30 @@ export default function OrderDetailPage() {
 
           <div className="flex flex-col sm:items-end gap-2">
             <OrderStatusBadge status={order.status} />
-            {(order.status === 'PAYMENT_FAILED' ||
-              order.status === 'PENDING') && (
+            {canCancelOrder && (
               <button
                 type="button"
-                disabled={retryingPayment}
-                onClick={handleRetryPayment}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3E2723] text-white text-xs font-bold hover:bg-[#2C1810] disabled:opacity-50 transition-colors"
+                onClick={() => setShowCancelModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-bold hover:bg-red-100 transition-colors"
               >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>
-                  {retryingPayment ? 'Đang thanh toán...' : 'Thanh toán lại'}
-                </span>
+                <X className="w-3.5 h-3.5" />
+                <span>Hủy đơn hàng</span>
               </button>
             )}
+            {(order.status === 'PAYMENT_FAILED' ||
+              order.status === 'PENDING') && (
+                <button
+                  type="button"
+                  disabled={retryingPayment}
+                  onClick={handleRetryPayment}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3E2723] text-white text-xs font-bold hover:bg-[#2C1810] disabled:opacity-50 transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>
+                    {retryingPayment ? 'Đang thanh toán...' : 'Thanh toán lại'}
+                  </span>
+                </button>
+              )}
           </div>
         </div>
 
@@ -403,6 +421,85 @@ export default function OrderDetailPage() {
           </div>
         </div>
       </div>
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div className="w-11 h-11 rounded-xl bg-red-50 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCancelModal(false);
+                  setCancelReason('');
+                }}
+                className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+                aria-label="Đóng cửa sổ"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <h2 className="text-lg font-extrabold text-[#2C1810] mt-4">
+              Xác nhận hủy đơn hàng?
+            </h2>
+
+            <p className="text-sm text-[#795548] mt-2 leading-relaxed">
+              Bạn có chắc muốn hủy đơn hàng{' '}
+              <strong className="text-[#3E2723">{order.orderCode}</strong>
+              ? Vui lòng kiểm tra trước khi tiếp tục.
+            </p>
+            <div className="mt-4">
+              <label
+                htmlFor="cancel-reason"
+                className="block text-xs font-bold text-[#5D4037] mb-2"
+              >
+                Lý do hủy đơn (không bắt buộc)
+              </label>
+
+              <textarea
+                id="cancel-reason"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Nhập lý do hủy đơn của bạn..."
+                rows={3}
+                maxLength={300}
+                className="w-full rounded-xl border border-[#E6DCD2] p-3 text-sm text-[#2C1810] outline-none focus:ring-2 focus:ring-[#BCAAA4] resize-none"
+              />
+            </div>
+
+            <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3">
+              <p className="text-xs text-amber-800 leading-relaxed">
+                Chức năng hủy đơn đang chờ kết nối Backend. Hiện tại
+                chưa thể gửi yêu cầu hủy đơn thực tế.
+              </p>
+            </div>
+            <div className="flex gap-3 mt-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCancelModal(false);
+                  setCancelReason('');
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-[#E6DCD2] bg-white text-[#5D4037] text-sm font-bold hover:bg-[#FDFBF7] transition-colors"
+              >
+                Quay lại
+              </button>
+
+              <button
+                type="button"
+                disabled
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold opacity-50 cursor-not-allowed"
+                title="Backend chưa hỗ trợ hủy đơn hàng"
+              >
+                Xác nhận hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

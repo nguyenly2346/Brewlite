@@ -230,15 +230,17 @@ Frontend sẽ khởi động trên cổng `http://localhost:3000`.
 
 ## 8. Chạy kiểm thử tự động Backend (Jest - Task 10)
 
-Hệ thống đã viết đầy đủ 2 bộ kiểm thử chứng minh đúng yêu cầu Task 10 của đề bài:
+Hệ thống đã viết đầy đủ 3 bộ kiểm thử chứng minh đúng yêu cầu Task 10 của đề bài:
 1. `task10-state-machine.spec.ts`: Kiểm tra các nhánh chuyển trạng thái hợp lệ và chặn chuyển sai.
 2. `task10-idempotency.spec.ts`: Kiểm tra thanh toán lặp với cùng một Idempotency-Key không bị trừ tiền hay cộng điểm 2 lần.
+3. `task10-concurrency.spec.ts`: Kiểm tra nhiều khách đặt đồng thời (`Promise.all`) không bán vượt tồn kho `Product.stock` (optimistic locking bằng `version` + retry), đơn nhiều dòng được rollback, hủy đơn hoàn lại tồn kho.
 
 Để chạy kiểm thử, mở terminal tại thư mục `backend` và gõ:
 
 ```bash
 cd apps/api
-npm test
+npx prisma db push   # nếu CSDL đã tạo trước đó: thêm cột Product.stock
+npm test            # tự chạy prisma generate trước (script pretest)
 ```
 
 ---

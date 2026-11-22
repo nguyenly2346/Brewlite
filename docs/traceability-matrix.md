@@ -8,6 +8,7 @@ Quy ước mã test:
 | :--- | :--- | :--- | :--- |
 | UT-T01 | `apps/api/test/task10-state-machine.spec.ts` | Unit | Máy trạng thái đơn: chuyển hợp lệ, chuyển sai, trạng thái kết thúc. |
 | UT-T02 | `apps/api/test/task10-idempotency.spec.ts` | Unit (Prisma giả lập) | Thanh toán idempotent, điểm thưởng cộng một lần. |
+| UT-T03 | `apps/api/test/task10-concurrency.spec.ts` | Unit (Prisma giả lập, chạy song song bằng `Promise.all`) | Đặt đơn đồng thời không vượt tồn kho (`Product.stock` + `version`), rollback khi một dòng hết hàng, hủy đơn hoàn kho. |
 | E2E-T01 | `apps/api/test/checkout-flow.e2e.spec.ts` | E2E qua API thật | Menu → đăng nhập → tạo đơn → thanh toán → xác nhận đơn PAID. |
 | SMK-T01 | `tests/smoke-test.sh` | Smoke | `GET /health` và `GET /products` đều trả 200. |
 
@@ -56,6 +57,6 @@ Quy ước mã test:
 
 | # | Vấn đề | Cần làm |
 | :-: | :--- | :--- |
-| 1 | `sequence-checkout.puml` và `class-diagram.puml` còn `Product.stock`/`version` và trừ kho bằng optimistic locking; schema và code không có `stock`, kho trừ theo BOM khi PREPARING (FR-06/FR-15). | Cập nhật hai sơ đồ cho khớp, hoặc đổi SRS và code. |
+| 1 | Tồn kho theo sản phẩm (`Product.stock`, `version`) đã có trong schema/SQL và `createOrder` trừ kho bằng optimistic locking; kho nguyên liệu vẫn trừ theo BOM khi PREPARING (FR-06/FR-15). | Đã đồng bộ với `sequence-checkout.puml`, `class-diagram.puml` và test UT-T03. |
 | 2 | FR-02, FR-03, FR-06, FR-11, FR-14–FR-16, NFR-01/03/04 chưa có test tự động. | Bổ sung test hoặc ghi rõ là kiểm thử thủ công. |
 | 3 | UT-T02 dùng Prisma giả lập, chưa phải integration test với DB thật cho tạo đơn/thanh toán. | Thêm integration test chạy với PostgreSQL của CI. |

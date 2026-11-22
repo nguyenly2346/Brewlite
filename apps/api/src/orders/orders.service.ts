@@ -26,7 +26,9 @@ export class OrdersService {
       throw new BadRequestException('Giỏ hàng không được để trống');
     }
 
-    const MAX_RETRIES = 5;
+    // Mỗi lần thất bại do xung đột version chỉ xảy ra khi có giao dịch khác vừa trừ kho thành công,
+    // nên số lần thử lại cần lớn hơn số giao dịch tranh chấp đồng thời trên cùng một sản phẩm.
+    const MAX_RETRIES = 10;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         return await this.prisma.$transaction(async (tx) => {
@@ -67,6 +69,34 @@ export class OrdersService {
 
             if (!product || !product.isAvailable) {
               throw new BadRequestException('Sản phẩm không tồn tại hoặc đang tạm ngưng phục vụ');
+            }
+
+            // Giữ chỗ tồn kho bằng optimistic locking: chỉ trừ khi version chưa đổi và stock còn đủ.
+            // updateMany là một câu UPDATE nguyên tử trong DB nên không thể bán vượt tồn kho.
+            if (product.stock < item.qty) {
+              throw new ConflictException(
+                `Sản phẩm "${product.name}" không đủ tồn kho (còn ${product.stock})`,
+              );
+            }
+            const reserved = await tx.product.updateMany({
+              where: {
+                id: product.id,
+                version: product.version,
+                stock: { gte: item.qty },
+              },
+              data: {
+                stock: { decrement: item.qty },
+                version: { increment: 1 },
+              },
+            });
+            if (reserved.count === 0) {
+              const latest = await tx.product.findUnique({ where: { id: product.id } });
+              if (!latest || !latest.isAvailable || latest.stock < item.qty) {
+                throw new ConflictException(
+                  `Sản phẩm "${product.name}" không đủ tồn kho (còn ${latest?.stock ?? 0})`,
+                );
+              }
+              throw new ConflictException(`OPT_LOCK_CONFLICT: ${product.id}`);
             }
 
             const selectedToppings = (item.toppingIds ?? []).map((tid) => {
@@ -196,7 +226,9 @@ export class OrdersService {
           error.message.includes('OPT_LOCK_CONFLICT') &&
           attempt < MAX_RETRIES
         ) {
-          await new Promise((resolve) => setTimeout(resolve, 5 * attempt));
+          await new Promise((resolve) =>
+            setTimeout(resolve, 5 * attempt + Math.floor(Math.random() * 15)),
+          );
           continue;
         }
 
@@ -271,6 +303,18 @@ export class OrdersService {
       assertTransition(order.status, dto.status);
 
       if (dto.status === OrderStatus.CANCELLED) {
+        // Hoàn lại tồn kho đã giữ chỗ khi tạo đơn.
+        if (tx.product) {
+          for (const item of order.items) {
+            await tx.product.updateMany({
+              where: { id: item.productId },
+              data: {
+                stock: { increment: item.qty },
+                version: { increment: 1 },
+              },
+            });
+          }
+        }
         if (order.pointsUsed && order.pointsUsed > 0 && tx.user) {
           await tx.user.update({
             where: { id: order.userId },
@@ -281,20 +325,60 @@ export class OrdersService {
         }
       }
 
+      
       if (dto.status === OrderStatus.PREPARING && tx.recipe && tx.ingredient) {
         for (const item of order.items) {
           if (!item.inventoryDeducted) {
+            // Đánh dấu OrderItem đã được xử lý để tránh trừ kho hai lần.
+            const claimedItem = await tx.orderItem.updateMany({
+              where: {
+                id: item.id,
+                inventoryDeducted: false,
+              },
+              data: {
+                inventoryDeducted: true,
+                kdsStartedAt: new Date(),
+              },
+            });
+
+            // Đơn hàng đã được xử lý bởi giao dịch khác.
+            if (claimedItem.count === 0) {
+              continue;
+            }
+
             const recipes = await tx.recipe.findMany({
               where: { productId: item.productId },
             });
+
             for (const r of recipes) {
               const deductAmount = r.quantityNeeded * item.qty;
-              const updatedIng = await tx.ingredient.update({
-                where: { id: r.ingredientId },
+
+              // Chỉ trừ kho nếu số lượng hiện tại đủ đáp ứng.
+              const result = await tx.ingredient.updateMany({
+                where: {
+                  id: r.ingredientId,
+                  currentStock: { gte: deductAmount },
+                },
                 data: {
                   currentStock: { decrement: deductAmount },
                 },
               });
+
+              // Không đủ nguyên liệu: rollback toàn bộ transaction.
+              if (result.count === 0) {
+                throw new ConflictException(
+                  'OPT_LOCK_CONFLICT: Nguyên liệu không đủ tồn kho',
+                );
+              }
+
+              const updatedIng = await tx.ingredient.findUnique({
+                where: { id: r.ingredientId },
+              });
+
+              if (!updatedIng) {
+                throw new NotFoundException('Không tìm thấy nguyên liệu');
+              }
+
               await tx.inventoryTransaction.create({
                 data: {
                   ingredientId: r.ingredientId,
@@ -307,13 +391,6 @@ export class OrdersService {
                 },
               });
             }
-            await tx.orderItem.update({
-              where: { id: item.id },
-              data: {
-                inventoryDeducted: true,
-                kdsStartedAt: new Date(),
-              },
-            });
           }
         }
       }
