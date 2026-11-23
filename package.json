@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prepare": "husky",
+    "e2e:install": "npm --prefix e2e ci && npm --prefix e2e run install:browsers",
+    "e2e:web": "npm --prefix e2e test",
     "dev:backend": "npm --prefix apps/api run start:dev",
     "dev:frontend": "npm --prefix apps/web run dev",
     "build:backend": "npm --prefix apps/api run build",
@@ -12,5 +15,11 @@
     "test:e2e": "npm --prefix apps/api run test -- checkout-flow",
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down -v"
-  }
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "husky": "^9.1.6"
+  },
+  "commitlint": { "extends": ["@commitlint/config-conventional"] }
 }
