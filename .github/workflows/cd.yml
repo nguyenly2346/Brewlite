@@ -19,8 +19,13 @@ env:
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/brewlite
 
 jobs:
+  quality-gate:
+    name: Quality gate (lint, test, build)
+    uses: ./.github/workflows/ci.yml
+
   build-push:
     name: Build and push images to GHCR
+    needs: quality-gate
     runs-on: ubuntu-latest
     outputs:
       sha_tag: ${{ steps.meta.outputs.sha_tag }}

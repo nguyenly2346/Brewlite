@@ -201,3 +201,32 @@ hook husky + commitlint tự kiểm tra commit message.
   ```bash
   docker compose down
   ```
+
+---
+
+## 10. Build, triển khai và rollback
+
+Build thủ công:
+
+```bash
+npm --prefix apps/api run build     # NestJS -> apps/api/dist
+npm --prefix apps/web run build     # Next.js -> apps/web/.next
+```
+
+CI (`.github/workflows/ci.yml`) chạy khi mở pull request: cài dependency, lint, unit/integration test, build. Pipeline CD (`.github/workflows/cd.yml`) chạy khi push lên `main` hoặc tag `vX.Y.Z`:
+
+```
+Quality gate → Build image (tag = commit SHA) → Push GHCR → Migrate + Deploy + Smoke test (container thật) → Deploy production → Smoke test production
+```
+
+Secret nằm trong GitHub Secrets (`RENDER_DEPLOY_HOOK_URL`, `PROD_API_URL`) và Environment của nền tảng (`DATABASE_URL`, `JWT_SECRET`), không nằm trong repository hay log CI. Migration chạy bằng `prisma migrate deploy` (xem `apps/api/docker-entrypoint.sh`).
+
+Khi triển khai thất bại (smoke test đỏ), pipeline dừng. Rollback: trên nền tảng chọn lại bản deploy ổn định gần nhất, hoặc `git revert <commit>` trên `main` để pipeline deploy lại, hoặc deploy lại image tag cũ (`vX.Y.Z` trước đó). Lỗi do migration thì khôi phục snapshot database trước khi deploy lại. Chi tiết từng tình huống ở [`docs/deployment.md`](docs/deployment.md).
+
+## 11. Quy trình làm việc nhóm
+
+- `main` là nhánh phát hành; không commit trực tiếp vào `main`.
+- Mỗi việc làm trên một nhánh riêng (`feat/...`, `fix/...`, `docs/...`), mở pull request vào `main`, cần CI xanh và ít nhất 1 thành viên review trước khi merge.
+- Commit theo Conventional Commits (xem mục "Quy ước commit" ở trên).
+- Mỗi pull request tick đủ Definition of Done trong `.github/pull_request_template.md` và liên kết mã yêu cầu trong `docs/traceability-matrix.md`.
+- Thay đổi yêu cầu, sơ đồ hoặc kiến trúc phải đi qua pull request và ghi rõ lý do trong mô tả.
