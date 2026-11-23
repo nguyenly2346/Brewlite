@@ -57,6 +57,31 @@ export default function OrderDetailPage() {
     setToastProgress(100);
   };
 
+  const handleCancelOrder = async () => {
+    if (!token || !order || cancellingOrder) return;
+
+    setCancellingOrder(true);
+    setError(null);
+
+    try {
+      const updatedOrder = await api.cancelOrder(
+        token,
+        order.id,
+        cancelReason.trim() || undefined,
+      );
+
+      setOrder(updatedOrder);
+      setShowCancelModal(false);
+      setCancelReason('');
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Không thể hủy đơn hàng',
+      );
+    } finally {
+      setCancellingOrder(false);
+    }
+  };
+
   const fetchOrder = async () => {
     if (!token || !params?.id) return;
     setLoading(true);
@@ -291,9 +316,29 @@ export default function OrderDetailPage() {
                 </button>
               )}
           </div>
-        </div>
+          {order.status === 'CANCELLED' && (
+            <div className="rounded-xl bg-red-50 border border-red-100 p-4 space-y-2">
+              <p className="text-sm font-bold text-red-800">
+                Thông tin hủy đơn
+              </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="text-xs text-red-700 space-y-1.5">
+                <p>
+                  <span className="font-semibold">Lý do hủy:</span>{' '}
+                  {order.cancelReason || 'Khách hàng yêu cầu hủy đơn'}
+                </p>
+
+                <p>
+                  <span className="font-semibold">Thời gian hủy:</span>{' '}
+                  {order.cancelledAt
+                    ? formatDateTime(order.cancelledAt)
+                    : 'Chưa ghi nhận'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
           <div className="p-3.5 rounded-xl bg-[#FDFBF7] border border-[#E6DCD2] flex items-center gap-3">
             <CreditCard className="w-5 h-5 text-[#3E2723] shrink-0" />
             <div>
@@ -490,11 +535,14 @@ export default function OrderDetailPage() {
 
               <button
                 type="button"
-                disabled
-                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold opacity-50 cursor-not-allowed"
-                title="Backend chưa hỗ trợ hủy đơn hàng"
+                onClick={handleCancelOrder}
+                disabled={cancellingOrder}
+                className={`flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold transition ${cancellingOrder
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:bg-red-700'
+                  }`}
               >
-                Xác nhận hủy
+                {cancellingOrder ? 'Đang xử lý...' : 'Xác nhận hủy'}
               </button>
             </div>
           </div>

@@ -117,6 +117,7 @@ export interface Order {
   total: number;
   promotionCode?: string | null;
   cancelReason?: string | null;
+  cancelledAt?: string | null;
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
@@ -393,6 +394,16 @@ export const api = {
 
   getOrderById: (token: string, id: string) =>
     requestApi<Order>(`/orders/${id}`, {}, token),
+
+    cancelOrder: (token: string, id: string, cancelReason?: string) =>
+    requestApi<Order>(
+      `/orders/${id}/cancel`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ cancelReason }),
+      },
+      token,
+    ),
 
   updateOrderStatus: (token: string, id: string, status: OrderStatus) =>
     requestApi<Order>(
