@@ -28,33 +28,31 @@ Chạy test: `npm --prefix apps/api test` (unit) và `npm --prefix apps/api run 
 | `FRONTEND_URL` | API | Render | URL HTTPS của web. |
 | `NEXT_PUBLIC_API_URL` | Web | Build arg / Environment | URL HTTPS của API; được nhúng lúc build. |
 
-GitHub Secrets cần có: `PROD_API_URL`, token đẩy registry, deploy hook của hai service Render (tên cụ thể tùy cấu hình). Không đưa secret vào repository hay log CI.
+GitHub Secrets cần có: `RENDER_DEPLOY_HOOK_URL`, `PROD_API_URL` (`GITHUB_TOKEN` có sẵn để đẩy GHCR). Không đưa secret vào repository hay log CI.
 
 ## 3. Pipeline CI (`.github/workflows/ci.yml`)
 
-Chạy khi mở pull request và khi push: Checkout → Node 20 → cài dependency → `prisma generate` + `prisma migrate deploy` trên Postgres service → lint → unit test → build API → build web.
+Chạy khi mở pull request và khi push lên nhánh làm việc: Checkout → Node 20 → cài dependency → `prisma generate` + `prisma migrate deploy` trên Postgres service → lint → unit/integration test → build API → build web. Pipeline CD gọi lại workflow này làm quality gate.
 
 Thiết lập branch protection cho `main`: bắt buộc job CI xanh trước khi merge.
 
-## 4. Pipeline CD đích (Task 5.3)
+## 4. Pipeline CD (`.github/workflows/cd.yml`)
 
 ```
-Push main / Tag vX.Y.Z → Lint + Test → Build Docker image → Push GHCR → Deploy → Smoke test
+Push main / Tag vX.Y.Z → Quality gate → Build image (tag SHA) → Push GHCR → Migrate + Deploy + Smoke (container thật) → Gắn tag latest/semver → Deploy Render → Smoke test production
 ```
 
-| Bước | Mô tả |
-| :-: | :--- |
-| 1 | Chạy lại quality gate (lint, test, build). |
-| 2 | Build `brewlite-api` và `brewlite-web`, tag bằng commit SHA hoặc `vX.Y.Z`. |
-| 3 | Đẩy image lên `ghcr.io/<org>/brewlite-*`. |
-| 4 | Deploy qua deploy hook/API của Render bằng secret của CI. |
-| 5 | Chạy migration: `npx prisma migrate deploy` (trước khi API nhận request). |
-| 6 | Smoke test: `./tests/smoke-test.sh https://<api-url>`. |
-| 7 | Smoke test thất bại → job dừng, đỏ; thực hiện rollback (mục 6). |
+| Bước | Job | Mô tả |
+| :-: | :--- | :--- |
+| 1 | `quality-gate` | Gọi `ci.yml`: lint, test, build. Lỗi thì pipeline dừng. |
+| 2-3 | `build-push` | Build `brewlite-api` và `brewlite-web`, tag bằng commit SHA (`sha-xxxxxxx`), đẩy lên `ghcr.io/<owner>/brewlite-*`. |
+| 4-5 | `verify` | Dựng DB và container thật từ image vừa đẩy, chạy `prisma migrate deploy`, khởi động API và web. |
+| 6 | `verify` | Smoke test `./tests/smoke-test.sh http://localhost:4000` và kiểm tra web. |
+| - | `release` | Chỉ khi `verify` xanh: gắn tag `latest` (và `X.Y.Z` nếu push tag `vX.Y.Z`) cho image đã kiểm tra. |
+| 4 | `deploy` | Gọi deploy hook Render bằng secret `RENDER_DEPLOY_HOOK_URL`, chờ `/health` của production. |
+| 6-7 | `deploy` | Chạy `smoke-test.sh` trên `PROD_API_URL`; thất bại thì job đỏ và pipeline dừng, rollback theo mục 6. |
 
-**Hiện trạng `cd.yml`:** mới build image bằng `docker compose build` và in thông báo; chưa đẩy registry, chưa deploy, chưa chạy `smoke-test.sh`. Cần hoàn thiện các bước 3–6 trước khi nộp.
-
-**Migration:** `apps/api/docker-entrypoint.sh` chạy `prisma migrate deploy` khi API khởi động (DB rỗng được tạo từ `prisma/migrations`, đã gồm dữ liệu mẫu). Database cũ tạo bằng `db push` (lỗi P3005) được đánh dấu migration khởi tạo là đã áp dụng rồi chạy tiếp.
+**Migration:** `apps/api/docker-entrypoint.sh` chạy `prisma migrate deploy` khi API khởi động (DB rỗng được tạo từ `prisma/migrations`, đã gồm dữ liệu mẫu). Database cũ tạo bằng `db push` (lỗi P3005) được đánh dấu migration khởi tạo là đã áp dụng rồi chạy tiếp. Job `verify` cũng chạy `migrate deploy` trên DB trống trước khi deploy.
 
 ## 5. Health check và smoke test
 
