@@ -1,9 +1,6 @@
 
 import { ConflictException } from '@nestjs/common';
-import {
-  OrderStatus,
-  InventoryTxType,
-} from '@prisma/client';
+import { OrderStatus } from '@prisma/client';
 import { OrdersService } from '../src/orders/orders.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 

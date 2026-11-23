@@ -1,83 +1,3 @@
-# BrewLite — Đặt cà phê không tiền mặt
-
-Bài tập lớn môn **Công nghệ Phần mềm** — **Nhóm 19**, Khoa CNTT, Đại học Sài Gòn (SGU).
-
-Luồng nghiệp vụ: `Xem menu → Chọn size/topping → Giỏ hàng → Đặt đơn → Thanh toán (Ví/Thẻ mô phỏng) → Theo dõi đơn`
-
-## Công nghệ
-
-| Thành phần | Công nghệ |
-| :--- | :--- |
-| Frontend (`apps/web`) | Next.js 14 (App Router), TypeScript, TailwindCSS, Zustand |
-| Backend (`apps/api`) | NestJS, Passport JWT, class-validator, Jest |
-| Database | PostgreSQL 16 + Prisma ORM |
-| DevOps | Docker Compose, GitHub Actions |
-
-## Chạy nhanh bằng Docker
-
-Yêu cầu: Docker Desktop đang chạy.
-
-```bash
-docker compose down -v          # dọn bản cũ (nếu có)
-docker compose up --build -d    # build + chạy db, backend, frontend
-```
-
-| Dịch vụ | URL |
-| :--- | :--- |
-| Web | http://localhost:3000 |
-| API health | http://localhost:4000/health |
-
-Tài khoản mẫu (tự nhập vào form đăng nhập `/login`, mật khẩu chung `BrewLite@123`):
-
-| Vai trò | Email | Mật khẩu |
-| :--- | :--- | :--- |
-| Khách hàng (15.000 điểm) | `khachhang@brewlite.vn` | `BrewLite@123` |
-| Admin | `admin@brewlite.vn` | `BrewLite@123` |
-| Barista (Admin) | `barista@brewlite.vn` | `BrewLite@123` |
-
-Mã khuyến mãi: `BREWLITE10` (-10%, tối đa 20k, đơn ≥ 40k), `CHAOBANMOI` (-20%, tối đa 30k, đơn ≥ 80k)
-
-## Chạy thủ công (không Docker cho app)
-
-```bash
-docker compose up -d db
-cd apps/api && npm install && npx prisma db push && npm run seed && npm run start:dev   # :4000
-cd apps/web && npm install && npm run dev                                                # :3000
-```
-
-Xem DB: `cd apps/api && npx prisma@5 studio` → http://localhost:5555
-
-## Kiểm thử
-
-```bash
-cd apps/api
-npm test            # unit test (state machine, idempotency)
-npm run test:e2e    # E2E, cần API đang chạy ở :4000 (hoặc NEXT_PUBLIC_API_URL)
-bash tests/smoke-test.sh http://localhost:4000   # từ thư mục gốc
-```
-
-## API chính
-
-| Endpoint | Chức năng |
-| :--- | :--- |
-| `GET /products`, `GET /products/:id` | Menu / chi tiết |
-| `POST /auth/register`, `POST /auth/login` | Đăng ký / đăng nhập (JWT) |
-| `POST /orders`, `GET /orders/me`, `GET /orders/:id` | Tạo đơn (PENDING) / lịch sử / chi tiết |
-| `PATCH /orders/:id/status` | Cập nhật trạng thái (Admin) |
-| `POST /payments` | Thanh toán, idempotent qua header `Idempotency-Key` |
-| `POST /promotions/apply` | Áp mã khuyến mãi |
-| `GET /admin/stats`, `/admin/orders`, `/admin/inventory` | Quản trị |
-| `GET /health` | Health check (kèm kiểm tra DB) |
-
----
-
-## Xử lý sự cố
-
-- **Cổng 5432/3000/4000 bị chiếm**: tắt dịch vụ đang dùng hoặc đổi cổng trong `docker-compose.yml`.
-- **Không kết nối được Docker**: mở Docker Desktop trước khi chạy `docker compose`.
-- **Build lỗi cache**: `docker compose build --no-cache`.
-- **Dừng hệ thống**: `docker compose down` (thêm `-v` để xóa dữ liệu).
-=======
 # BrewLite — Hệ Thống Đặt Cà Phê Không Tiền Mặt & Quản Trị Quầy Barista
 
 Dự án bài tập lớn môn **Công nghệ phần mềm**  
@@ -211,8 +131,7 @@ Mở cửa sổ dòng lệnh thứ nhất:
 ```bash
 cd apps/api
 npm install
-npx prisma db push
-npm run seed
+npx prisma migrate deploy
 npm run start:dev
 ```
 Backend sẽ khởi động trên cổng `http://localhost:4000`.
@@ -239,7 +158,7 @@ Hệ thống đã viết đầy đủ 3 bộ kiểm thử chứng minh đúng y�
 
 ```bash
 cd apps/api
-npx prisma db push   # nếu CSDL đã tạo trước đó: thêm cột Product.stock
+npx prisma migrate deploy   # áp dụng migration (gồm cột Product.stock)
 npm test            # tự chạy prisma generate trước (script pretest)
 ```
 
@@ -250,7 +169,7 @@ npm test            # tự chạy prisma generate trước (script pretest)
 Bộ test nằm trong thư mục `e2e/` (độc lập với `apps/`), chạy trên viewport điện thoại.
 
 ```bash
-docker compose -f docker-compose.yml -f e2e/docker-compose.e2e.yml up -d --build   # dựng db + backend + frontend
+docker compose up -d --build   # dựng db + backend + frontend
 npm run e2e:install                   # lần đầu: cài dependency và trình duyệt Chromium
 npm run e2e:web                       # chạy test; báo cáo ở e2e/playwright-report
 ```
@@ -282,4 +201,3 @@ hook husky + commitlint tự kiểm tra commit message.
   ```bash
   docker compose down
   ```
->>>>>>> origin/ltk

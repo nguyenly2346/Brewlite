@@ -32,7 +32,7 @@ GitHub Secrets cần có: `PROD_API_URL`, token đẩy registry, deploy hook c�
 
 ## 3. Pipeline CI (`.github/workflows/ci.yml`)
 
-Chạy khi mở pull request và khi push: Checkout → Node 20 → cài dependency → `prisma generate` + `prisma db push` trên Postgres service → unit test → build API → build web.
+Chạy khi mở pull request và khi push: Checkout → Node 20 → cài dependency → `prisma generate` + `prisma migrate deploy` trên Postgres service → lint → unit test → build API → build web.
 
 Thiết lập branch protection cho `main`: bắt buộc job CI xanh trước khi merge.
 
@@ -54,7 +54,7 @@ Push main / Tag vX.Y.Z → Lint + Test → Build Docker image → Push GHCR → 
 
 **Hiện trạng `cd.yml`:** mới build image bằng `docker compose build` và in thông báo; chưa đẩy registry, chưa deploy, chưa chạy `smoke-test.sh`. Cần hoàn thiện các bước 3–6 trước khi nộp.
 
-**Hiện trạng migration:** `apps/api/Dockerfile` chạy `prisma db push --accept-data-loss` khi khởi động, có thể xóa dữ liệu khi schema đổi. Production nên dùng `prisma migrate deploy` với thư mục `prisma/migrations`.
+**Migration:** `apps/api/docker-entrypoint.sh` chạy `prisma migrate deploy` khi API khởi động (DB rỗng được tạo từ `prisma/migrations`, đã gồm dữ liệu mẫu). Database cũ tạo bằng `db push` (lỗi P3005) được đánh dấu migration khởi tạo là đã áp dụng rồi chạy tiếp.
 
 ## 5. Health check và smoke test
 

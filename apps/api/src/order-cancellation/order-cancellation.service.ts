@@ -20,7 +20,7 @@ export class OrderCancellationService {
     return this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        include: { payments: true },
+        include: { payments: true, items: true },
       });
 
       if (!order) {
@@ -70,6 +70,14 @@ export class OrderCancellationService {
         throw new ConflictException(
           'Đơn hàng đã được xử lý bởi yêu cầu khác',
         );
+      }
+
+      // Hoàn lại tồn kho đã giữ chỗ khi tạo đơn.
+      for (const item of order.items) {
+        await tx.product.updateMany({
+          where: { id: item.productId },
+          data: { stock: { increment: item.qty }, version: { increment: 1 } },
+        });
       }
 
       // Hoàn điểm tích lũy đã sử dụng

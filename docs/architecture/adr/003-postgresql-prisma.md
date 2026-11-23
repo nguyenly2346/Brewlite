@@ -13,4 +13,4 @@ Dùng PostgreSQL 16 làm CSDL và Prisma 5 làm ORM. Schema ở `apps/api/prisma
 - (+) Transaction ACID cho tạo đơn, thanh toán, cộng/trừ điểm, trừ kho.
 - (+) Kiểu dữ liệu và enum (`OrderStatus`, `PaymentStatus`, …) được sinh thành type TypeScript.
 - (−) Cần bước `prisma generate` trong build và Docker.
-- (−) Hiện Dockerfile API dùng `prisma db push`; production cần chuyển sang `prisma migrate deploy` để migration an toàn, có lịch sử (xem `docs/deployment.md`).
+- (−) Schema đổi phải thêm migration mới (`prisma migrate dev`); API áp dụng bằng `prisma migrate deploy` khi khởi động (xem `docs/deployment.md`).

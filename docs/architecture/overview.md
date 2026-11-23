@@ -54,7 +54,7 @@ Browser/PWA ──HTTPS──► Next.js (Presentation)
 
 - Mô hình dữ liệu: `apps/api/prisma/schema.prisma` (16 bảng); class diagram domain bám theo mô hình này.
 - Migration khởi tạo: `apps/api/prisma/migrations/20261020000000_init/migration.sql`; seed: `apps/api/prisma/seed.ts` và `brewlite_database.sql`.
-- Local: `docker compose up` nạp `brewlite_database.sql` vào DB rỗng và API chạy seed khi khởi động.
+- Local: `docker compose up` tạo DB rỗng, API chạy `prisma migrate deploy` (schema và dữ liệu mẫu nằm trong migration khởi tạo).
 
 ## 5. Cấu hình, logging và health check
 
