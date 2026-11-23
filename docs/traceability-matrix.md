@@ -10,6 +10,10 @@ Quy ước mã test:
 | UT-T02 | `apps/api/test/task10-idempotency.spec.ts` | Unit (Prisma giả lập) | Thanh toán idempotent, điểm thưởng cộng một lần. |
 | UT-T03 | `apps/api/test/task10-concurrency.spec.ts` | Unit (Prisma giả lập, chạy song song bằng `Promise.all`) | Đặt đơn đồng thời không vượt tồn kho (`Product.stock` + `version`), rollback khi một dòng hết hàng, hủy đơn hoàn kho. |
 | E2E-T01 | `apps/api/test/checkout-flow.e2e.spec.ts` | E2E qua API thật | Menu → đăng nhập → tạo đơn → thanh toán → xác nhận đơn PAID. |
+| E2E-T02 | `e2e/tests/checkout.spec.ts` | E2E trình duyệt (Playwright) | Menu → chọn size → giỏ → đăng nhập → thanh toán → xác nhận đơn PAID. |
+| E2E-T03 | `e2e/tests/checkout.spec.ts` | E2E trình duyệt (Playwright) | Thanh toán lỗi → PAYMENT_FAILED, giữ nguyên giỏ, cho thử lại. |
+| E2E-T05 | `e2e/tests/health.spec.ts` | E2E API (Playwright) | `/health` trả 200 và có header `X-Request-Id`. |
+| UT-T10 | `apps/api/src/common/request-id.middleware.spec.ts` | Unit | Sinh/giữ `X-Request-Id`, loại id không an toàn. |
 | SMK-T01 | `tests/smoke-test.sh` | Smoke | `GET /health` và `GET /products` đều trả 200. |
 
 ## 1. Yêu cầu chức năng
@@ -17,12 +21,12 @@ Quy ước mã test:
 | Mã yêu cầu | Use-case / User Story | Thiết kế / Sơ đồ | Code / API | Test |
 | :--- | :--- | :--- | :--- | :--- |
 | **FR-01** | UC-02 Xem menu | UC-OV, Activity-01, Class-01 | `GET /products` · `apps/web/src/app/(user)/menu/page.tsx` | E2E-T01, SMK-T01 |
-| **FR-02** | UC-02 Chi tiết sản phẩm | UC-OV, Class-01 | `GET /products/:id` · `(user)/products/[id]/page.tsx` | Chưa có test tự động (kiểm thử thủ công) |
-| **FR-03** | UC-03 Quản lý giỏ hàng | UC-OV, Activity-01 | `apps/web/src/store/useCartStore.ts` · `(user)/cart/page.tsx` | Chưa có test tự động (kiểm thử thủ công) |
+| **FR-02** | UC-02 Chi tiết sản phẩm | UC-OV, Class-01 | `GET /products/:id` · `(user)/products/[id]/page.tsx` | E2E-T02 |
+| **FR-03** | UC-03 Quản lý giỏ hàng | UC-OV, Activity-01 | `apps/web/src/store/useCartStore.ts` · `(user)/cart/page.tsx` | E2E-T02 |
 | **FR-04** | UC-04 Đăng ký / Đăng nhập | UC-OV, Sequence-01, Class-01 (`User`) | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` · `login/page.tsx`, `register/page.tsx` | E2E-T01 (đăng nhập) |
-| **FR-05** | UC-01 Đặt đơn | UC-01-D, Activity-01, Sequence-01, Class-01 (`Order`, `OrderItem`) | `POST /orders` · `(user)/checkout/page.tsx` | E2E-T01 |
+| **FR-05** | UC-01 Đặt đơn | UC-01-D, Activity-01, Sequence-01, Class-01 (`Order`, `OrderItem`) | `POST /orders` · `(user)/checkout/page.tsx` | E2E-T01, E2E-T02 |
 | **FR-06** | UC-01, UC-08 Kiểm soát nguyên liệu | Sequence-01, Class-01 | `PATCH /orders/:id/status` (trừ kho theo BOM khi PREPARING) · `orders.service.ts` | Chưa có test tự động |
-| **FR-07** | UC-01 Thanh toán | UC-01-D, Activity-01, Sequence-01, Class-01 (`Payment`) | `POST /payments` · `payments.service.ts` | E2E-T01, UT-T02 |
+| **FR-07** | UC-01 Thanh toán | UC-01-D, Activity-01, Sequence-01, Class-01 (`Payment`) | `POST /payments` · `payments.service.ts` | E2E-T01, UT-T02, E2E-T02, E2E-T03 |
 | **FR-08** | UC-01 Thanh toán idempotent | Sequence-01 | `POST /payments` + header `Idempotency-Key` | UT-T02 |
 | **FR-09** | UC-06 Xác nhận và lịch sử đơn | UC-OV, Activity-01 | `GET /orders/me`, `GET /orders/:id` · `(user)/orders/page.tsx`, `orders/[id]/page.tsx` | E2E-T01 (xác nhận đơn) |
 | **FR-10** | UC-07 Cập nhật trạng thái đơn | UC-OV, Class-01 (`OrderStatus`) | `PATCH /orders/:id/status` · `orders/order-state-machine.ts` | UT-T01 |

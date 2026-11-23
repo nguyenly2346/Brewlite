@@ -245,6 +245,31 @@ npm test            # tự chạy prisma generate trước (script pretest)
 
 ---
 
+## 8b. Kiểm thử E2E trình duyệt (Playwright)
+
+Bộ test nằm trong thư mục `e2e/` (độc lập với `apps/`), chạy trên viewport điện thoại.
+
+```bash
+docker compose -f docker-compose.yml -f e2e/docker-compose.e2e.yml up -d --build   # dựng db + backend + frontend
+npm run e2e:install                   # lần đầu: cài dependency và trình duyệt Chromium
+npm run e2e:web                       # chạy test; báo cáo ở e2e/playwright-report
+```
+
+Chạy với môi trường khác: `E2E_BASE_URL=https://<web> E2E_API_URL=https://<api> npm run e2e:web`.
+Trên GitHub, workflow `.github/workflows/e2e.yml` chạy bộ test này cho mỗi pull request và lưu báo cáo thành artifact.
+
+### Request id và log
+
+Mọi response của API có header `X-Request-Id` (giữ nguyên giá trị client gửi nếu hợp lệ, nếu không thì tự sinh UUID).
+Log dạng `[requestId] METHOD /path status duration`. Khi báo lỗi, gửi kèm request id để truy log.
+
+### Quy ước commit
+
+Dùng Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `ci:`, `chore:`). Sau `npm install` ở thư mục gốc,
+hook husky + commitlint tự kiểm tra commit message.
+
+---
+
 ## 9. Xử lý sự cố thường gặp
 
 - **Lỗi cổng 5432 hoặc 3000 bị chiếm dụng**:  
