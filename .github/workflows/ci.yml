@@ -45,7 +45,12 @@ jobs:
           DATABASE_URL: postgresql://brewlite:brewlite_password@localhost:5432/brewlite_db?schema=public
         run: |
           npm --prefix apps/api run prisma:generate
-          npm --prefix apps/api run prisma:push
+          npm --prefix apps/api run migrate:deploy
+
+      - name: Lint
+        run: |
+          npm --prefix apps/api run lint
+          npm --prefix apps/web run lint
 
       - name: Run Backend Unit Tests (Task 10 Verification)
         env:

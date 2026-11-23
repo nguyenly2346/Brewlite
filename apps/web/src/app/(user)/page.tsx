@@ -40,7 +40,7 @@ export interface HomepageVoucher {
   highlight: string;
 }
 
-export const HOMEPAGE_VOUCHERS: HomepageVoucher[] = [
+const HOMEPAGE_VOUCHERS: HomepageVoucher[] = [
   {
     code: 'BREWLITE10',
     title: 'Giảm 10% Cho Đơn Từ 40K',

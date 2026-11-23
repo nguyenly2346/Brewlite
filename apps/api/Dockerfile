@@ -11,8 +11,8 @@ COPY prisma ./prisma/
 RUN npx prisma generate
 
 COPY . .
-RUN npx nest build
+RUN npx nest build && chmod +x docker-entrypoint.sh
 
 EXPOSE 4000
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
+CMD ["./docker-entrypoint.sh"]

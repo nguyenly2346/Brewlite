@@ -522,11 +522,11 @@ export default function AdminOrdersPage() {
                   </span>
                 </div>
               )}
-              {selectedDetailOrder.pointsDiscountAmount > 0 && (
+              {(selectedDetailOrder.pointsDiscountAmount ?? 0) > 0 && (
                 <div className="flex items-center justify-between text-[#B45309]">
                   <span>Điểm thưởng quy đổi ({selectedDetailOrder.pointsUsed} điểm)</span>
                   <span className="font-semibold tabular-nums">
-                    -{formatVND(selectedDetailOrder.pointsDiscountAmount)}
+                    -{formatVND(selectedDetailOrder.pointsDiscountAmount ?? 0)}
                   </span>
                 </div>
               )}

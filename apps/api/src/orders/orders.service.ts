@@ -221,29 +221,20 @@ export class OrdersService {
           return createdOrder;
         });
       } catch (error) {
-        if (
-          error instanceof ConflictException &&
-          error.message.includes('OPT_LOCK_CONFLICT') &&
-          attempt < MAX_RETRIES
-        ) {
-          await new Promise((resolve) =>
-            setTimeout(resolve, 5 * attempt + Math.floor(Math.random() * 15)),
-          );
-          continue;
+        const isLockConflict =
+          error instanceof ConflictException && error.message.includes('OPT_LOCK_CONFLICT');
+        if (!isLockConflict) {
+          throw error;
         }
-
-        if (
-          error instanceof ConflictException &&
-          error.message.includes('OPT_LOCK_CONFLICT')
-        ) {
-          throw new ConflictException(
-            'Sản phẩm không đủ tồn kho hoặc đang có giao dịch đồng thời, vui lòng thử lại',
-          );
-        }
-
-        throw error;
+        await new Promise((resolve) =>
+          setTimeout(resolve, 5 * attempt + Math.floor(Math.random() * 15)),
+        );
       }
     }
+
+    throw new ConflictException(
+      'Sản phẩm không đủ tồn kho hoặc đang có giao dịch đồng thời, vui lòng thử lại',
+    );
   }
 
   async findMyOrders(userId: string) {
@@ -367,7 +358,7 @@ export class OrdersService {
               // Không đủ nguyên liệu: rollback toàn bộ transaction.
               if (result.count === 0) {
                 throw new ConflictException(
-                  'OPT_LOCK_CONFLICT: Nguyên liệu không đủ tồn kho',
+                  `Không đủ nguyên liệu để pha "${item.productName}" cho đơn ${order.orderCode}`,
                 );
               }
 
