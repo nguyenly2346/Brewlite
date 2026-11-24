@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -113,14 +114,12 @@ export class PaymentsService {
           },
         });
 
-        const updatedOrder = await tx.order.update({
-          where: { id: order.id },
-          data: { status: OrderStatus.PAYMENT_FAILED },
-          include: {
-            items: true,
-            payments: true,
-          },
-        });
+        const updatedOrder = await this.updateOrderStatusGuarded(
+          tx,
+          order.id,
+          order.status,
+          OrderStatus.PAYMENT_FAILED,
+        );
 
         return {
           payment: failedPayment,
@@ -142,19 +141,17 @@ export class PaymentsService {
         },
       });
 
-      const updatedOrder = await tx.order.update({
-        where: { id: order.id },
-        data: { status: OrderStatus.PAID },
-        include: {
-          items: true,
-          payments: true,
-        },
-      });
+      const updatedOrder = await this.updateOrderStatusGuarded(
+        tx,
+        order.id,
+        order.status,
+        OrderStatus.PAID,
+      );
 
       const pointsEarned =
         user.role === UserRole.CUSTOMER ? Math.floor(order.total * 0.05) : 0;
       if (pointsEarned > 0) {
-        await tx.user.update({
+        const earnedUser = await tx.user.update({
           where: { id: order.userId },
           data: {
             loyaltyPoints: { increment: pointsEarned },
@@ -166,6 +163,8 @@ export class PaymentsService {
             userId: order.userId,
             orderId: order.id,
             points: pointsEarned,
+            balanceAfter: earnedUser?.loyaltyPoints ?? 0,
+            type: 'EARN',
             description: `Tích điểm hoàn 5% hóa đơn thanh toán đơn hàng ${order.orderCode}`,
           },
         });
@@ -178,5 +177,30 @@ export class PaymentsService {
         pointsEarned,
       };
     });
+  }
+
+  // Cập nhật có điều kiện theo trạng thái đã đọc: nếu đơn vừa bị hủy/đổi ở tab khác thì
+  // báo xung đột và rollback thay vì ghi đè (tránh đơn đã hủy lại thành PAID).
+  private async updateOrderStatusGuarded(
+    tx: any,
+    orderId: string,
+    expectedStatus: OrderStatus,
+    nextStatus: OrderStatus,
+  ) {
+    try {
+      return await tx.order.update({
+        where: { id: orderId, status: expectedStatus },
+        data: { status: nextStatus },
+        include: {
+          items: true,
+          payments: true,
+        },
+      });
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2025') {
+        throw new ConflictException('Đơn hàng vừa được cập nhật bởi thao tác khác, vui lòng tải lại');
+      }
+      throw error;
+    }
   }
 }

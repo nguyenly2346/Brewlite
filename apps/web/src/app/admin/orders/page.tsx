@@ -59,6 +59,7 @@ export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [refundNotice, setRefundNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabFilter>('ALL');
   const [stationFilter, setStationFilter] = useState<'ALL' | BarStation>('ALL');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -92,6 +93,8 @@ export default function AdminOrdersPage() {
     if (!token) return;
     setUpdatingId(orderId);
     setError(null);
+    setRefundNotice(null);
+    const previous = orders.find((o) => o.id === orderId);
     try {
       const updated = await api.updateOrderStatus(token, orderId, nextStatus);
       setOrders((prev) =>
@@ -99,6 +102,12 @@ export default function AdminOrdersPage() {
       );
       if (selectedDetailOrder && selectedDetailOrder.id === orderId) {
         setSelectedDetailOrder((prev) => (prev ? { ...prev, ...updated } : null));
+      }
+      // Chưa có tài khoản ví/thẻ thật của khách nên hoàn tiền chỉ hiển thị thông báo.
+      if (nextStatus === 'CANCELLED' && previous?.status === 'PAID') {
+        setRefundNotice(
+          `Đã hủy đơn ${previous.orderCode} và ghi nhận hoàn ${formatVND(previous.total)} cho khách (thông báo mô phỏng, không phát sinh giao dịch thật).`,
+        );
       }
     } catch (err) {
       setError(
@@ -199,6 +208,21 @@ export default function AdminOrdersPage() {
         <div className="flex items-center gap-2 p-4 rounded-2xl bg-red-50 border border-red-200 text-xs sm:text-sm text-red-700 font-semibold">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {refundNotice && (
+        <div className="flex items-center gap-2 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs sm:text-sm text-emerald-800 font-semibold">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span className="flex-1">{refundNotice}</span>
+          <button
+            type="button"
+            onClick={() => setRefundNotice(null)}
+            aria-label="Đóng thông báo"
+            className="p-1 rounded-lg hover:bg-emerald-100"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
 

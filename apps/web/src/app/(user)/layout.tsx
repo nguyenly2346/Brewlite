@@ -68,6 +68,13 @@ export default function UserLayout({
     }
   }, [token, refreshProfile]);
 
+  // Tài khoản quản trị chỉ dùng giao diện admin, không vào giao diện khách.
+  useEffect(() => {
+    if (user?.role === 'ADMIN') {
+      router.replace('/admin');
+    }
+  }, [user, router]);
+
   const isCartActive =
     pathname.startsWith('/cart') || pathname.startsWith('/checkout');
 

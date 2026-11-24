@@ -29,6 +29,7 @@ async function login(email: string) {
 describe('API BrewLite', () => {
   let customer: string;
   let admin: string;
+  let other: string;
   let productId: string;
 
   const newOrderBody = () => ({
@@ -41,6 +42,11 @@ describe('API BrewLite', () => {
   beforeAll(async () => {
     customer = await login('khachhang@brewlite.vn');
     admin = await login('admin@brewlite.vn');
+    const reg = await call('/auth/register', {
+      method: 'POST',
+      body: { email: `other-${Date.now()}@brewlite.vn`, password: 'BrewLite@123', fullName: 'Khách khác' },
+    });
+    other = reg.data.accessToken;
     const menu = await call('/products');
     productId = menu.data.products[0].id;
   });
@@ -146,8 +152,8 @@ describe('API BrewLite', () => {
       expect(Array.isArray(r.data)).toBe(true);
       expect(r.data.some((o: any) => o.id === created.data.id)).toBe(true);
     });
-    it('chỉ trả đơn của chính user (đơn của admin không lọt vào danh sách khách)', async () => {
-      const adminOrder = await createOrder(admin);
+    it('chỉ trả đơn của chính user (đơn của khách khác không lọt vào danh sách)', async () => {
+      const adminOrder = await createOrder(other);
       const mine = await call('/orders/me', { token: customer });
       expect(mine.data.some((o: any) => o.id === adminOrder.data.id)).toBe(false);
     });
@@ -163,8 +169,11 @@ describe('API BrewLite', () => {
       expect((await call(`/orders/${created.data.id}`, { token: customer })).status).toBe(200);
       expect((await call('/orders/id-khong-co', { token: customer })).status).toBe(404);
     });
+    it('admin không đặt hàng -> 403', async () => {
+      expect((await createOrder(admin)).status).toBe(403);
+    });
     it('khách xem đơn của người khác -> 403; admin xem được -> 200', async () => {
-      const adminOrder = await createOrder(admin);
+      const adminOrder = await createOrder(other);
       expect((await call(`/orders/${adminOrder.data.id}`, { token: customer })).status).toBe(403);
       expect((await call(`/orders/${adminOrder.data.id}`, { token: admin })).status).toBe(200);
     });
@@ -216,8 +225,8 @@ describe('API BrewLite', () => {
     it('đơn không tồn tại -> 404', async () => {
       expect((await pay(customer, { orderId: 'khong-co', method: 'WALLET' }, uniqueKey())).status).toBe(404);
     });
-    it('khách thanh toán đơn của admin -> 403', async () => {
-      const adminOrder = await createOrder(admin);
+    it('khách thanh toán đơn của khách khác -> 403', async () => {
+      const adminOrder = await createOrder(other);
       expect((await pay(customer, { orderId: adminOrder.data.id, method: 'WALLET' }, uniqueKey())).status).toBe(403);
     });
     it('thanh toán lỗi mô phỏng -> 200, FAILED, đơn PAYMENT_FAILED, không tích điểm', async () => {

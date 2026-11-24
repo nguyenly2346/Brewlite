@@ -3,6 +3,13 @@ import { UserRole } from '@prisma/client';
 import { AdminService, CreatedPurchaseOrder } from './admin.service';
 import { JwtAuthGuard, RolesGuard } from '../common/guards';
 import { AuthenticatedUser, CurrentUser, Roles } from '../common/decorators';
+import {
+  AdjustInventoryDto,
+  CreateIngredientDto,
+  UpdateIngredientDto,
+  UpdateRecipeDto,
+  UpsertRecipeDto,
+} from './admin.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -28,17 +35,7 @@ export class AdminController {
 @Post('inventory/adjust')
 async adjustInventory(
   @CurrentUser() user: AuthenticatedUser,
-  @Body()
-  body: {
-    ingredientId: string;
-    quantityChange?: number;
-    purchaseQty?: number;
-    packPrice?: number;
-    type: 'IMPORT' | 'ADJUSTMENT';
-    reason: string;
-    supplierId?: string;
-    unitCost?: number;
-  },
+  @Body() body: AdjustInventoryDto,
 ): Promise<{
   ingredient: unknown;
   transaction: unknown;
@@ -52,17 +49,7 @@ async adjustInventory(
 
   @Post('ingredients')
   async createIngredient(
-    @Body()
-    body: {
-      code: string;
-      name: string;
-      unit: string;
-      purchaseUnit?: string;
-      purchaseUnitSize?: number;
-      currentStock: number;
-      minThreshold: number;
-      costPerUnit: number;
-    },
+    @Body() body: CreateIngredientDto,
   ) {
     return this.adminService.createIngredient(body);
   }
@@ -70,16 +57,7 @@ async adjustInventory(
   @Patch('ingredients/:id')
   async updateIngredient(
     @Param('id') id: string,
-    @Body()
-    body: Partial<{
-      name: string;
-      unit: string;
-      purchaseUnit: string;
-      purchaseUnitSize: number;
-      currentStock: number;
-      minThreshold: number;
-      costPerUnit: number;
-    }>,
+    @Body() body: UpdateIngredientDto,
   ) {
     return this.adminService.updateIngredient(id, body);
   }
@@ -91,12 +69,7 @@ async adjustInventory(
 
   @Post('recipes')
   async upsertRecipe(
-    @Body()
-    body: {
-      productId: string;
-      ingredientId: string;
-      quantityNeeded: number;
-    },
+    @Body() body: UpsertRecipeDto,
   ) {
     return this.adminService.upsertRecipeItem(body);
   }
@@ -104,7 +77,7 @@ async adjustInventory(
   @Patch('recipes/:id')
   async updateRecipe(
     @Param('id') id: string,
-    @Body() body: { quantityNeeded: number },
+    @Body() body: UpdateRecipeDto,
   ) {
     return this.adminService.updateRecipeItem(id, body.quantityNeeded);
   }

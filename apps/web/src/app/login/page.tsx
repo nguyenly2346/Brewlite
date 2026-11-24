@@ -25,13 +25,13 @@ function LoginContent() {
     try {
       const res = await api.login({ email, password });
       setAuth(res.accessToken, res.user);
-      if (res.user.role === 'ADMIN' && redirectUrl === '/') {
-        router.push('/admin');
-      } else if (res.user.role !== 'ADMIN' && redirectUrl.startsWith('/admin')) {
-        router.push('/');
-      } else {
-        router.push(redirectUrl);
-      }
+    if (res.user.role === 'ADMIN') {
+      router.push('/admin');
+    } else if (redirectUrl.startsWith('/admin')) {
+      router.push('/');
+    } else {
+      router.push(redirectUrl);
+    }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Đăng nhập không thành công',

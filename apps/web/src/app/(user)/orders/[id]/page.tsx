@@ -21,6 +21,7 @@ import {
   formatVND,
   getStationLabel,
   Order,
+  RefundNotice,
 } from '../../../../lib/api';
 import { OrderStatusBadge } from '../../../../components/OrderStatusBadge';
 import { useAuthStore } from '../../../../store/useAuthStore';
@@ -41,16 +42,27 @@ export default function OrderDetailPage() {
   const [retryingPayment, setRetryingPayment] = useState<boolean>(false);
 
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
-  const [cancelReason, setCancelReason] = useState<string>('');
   const [cancellingOrder, setCancellingOrder] = useState<boolean>(false);
+
+  const [refundNotice, setRefundNotice] = useState<RefundNotice | null>(null);
 
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
   const [toastProgress, setToastProgress] = useState<number>(100);
 
+  const [errorToastMessage, setErrorToastMessage] = useState<string | null>(
+    null,
+  );
+  const [errorToastProgress, setErrorToastProgress] = useState<number>(100);
+
+  // Khách được hủy khi quầy chưa nhận pha chế (kể cả đơn đã thanh toán). Đơn đã hủy thì không hủy lại.
   const canCancelOrder =
     order?.status === 'PENDING' ||
     order?.status === 'PAYMENT_FAILED' ||
     order?.status === 'PAID';
+  const cancelBlockedReason =
+    order?.status === 'CANCELLED'
+      ? 'Đơn hàng này đã được hủy trước đó'
+      : 'Quầy đã nhận pha chế hoặc đơn đã hoàn tất, không thể hủy';
 
   const triggerPaymentSuccessToast = () => {
     setShowSuccessToast(true);
@@ -109,6 +121,23 @@ export default function OrderDetailPage() {
     return () => clearInterval(interval);
   }, [showSuccessToast]);
 
+  useEffect(() => {
+    if (!errorToastMessage) return;
+
+    const startTime = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, 100 - (elapsed / TOAST_DURATION_MS) * 100);
+      setErrorToastProgress(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        setErrorToastMessage(null);
+      }
+    }, 30);
+
+    return () => clearInterval(interval);
+  }, [errorToastMessage]);
+
   const handleRetryPayment = async () => {
     if (!token || !order) return;
     setRetryingPayment(true);
@@ -132,6 +161,31 @@ export default function OrderDetailPage() {
       );
     } finally {
       setRetryingPayment(false);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!token || !order || cancellingOrder) return;
+    setCancellingOrder(true);
+    try {
+      const { refund, ...updated } = await api.cancelOrder(token, order.id);
+      setOrder(updated as Order);
+      setRefundNotice(refund ?? null);
+      setShowCancelModal(false);
+      // Đơn đã hủy thì checkout không được dùng lại đơn này để thanh toán nữa.
+      const cart = useCartStore.getState();
+      if (cart.pendingOrderId === order.id) {
+        cart.setPendingOrderId(null);
+      }
+      await refreshProfile();
+    } catch (err) {
+      setShowCancelModal(false);
+      setErrorToastProgress(100);
+      setErrorToastMessage(
+        err instanceof Error ? err.message : 'Hủy đơn hàng không thành công',
+      );
+    } finally {
+      setCancellingOrder(false);
     }
   };
 
@@ -215,6 +269,42 @@ export default function OrderDetailPage() {
         </div>
       )}
 
+      {errorToastMessage && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed top-24 right-4 z-50 w-80 sm:w-96 overflow-hidden rounded-2xl bg-[#2C1810] text-white shadow-2xl border border-red-400/40"
+        >
+          <div className="p-4 flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-red-500/20 border border-red-400/40 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-extrabold text-red-300">
+                Không thể hủy đơn hàng
+              </p>
+              <p className="text-xs text-[#E6DCD2] mt-0.5 leading-relaxed">
+                {errorToastMessage}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setErrorToastMessage(null)}
+              className="p-1 rounded-lg text-[#D7CCC8] hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Đóng thông báo"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="h-1.5 w-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-red-400 to-amber-400 transition-none"
+              style={{ width: `${errorToastProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <Link
           href="/orders"
@@ -233,6 +323,31 @@ export default function OrderDetailPage() {
           <span>Làm mới</span>
         </button>
       </div>
+
+      {refundNotice && (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
+        >
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0 text-sm">
+            <p className="font-extrabold text-emerald-800">
+              Hoàn tiền {formatVND(refundNotice.amount)} thành công
+            </p>
+            <p className="text-emerald-700 mt-0.5 leading-relaxed">
+              {refundNotice.message}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRefundNotice(null)}
+            className="p-1 rounded-lg text-emerald-700 hover:bg-emerald-100"
+            aria-label="Đóng thông báo hoàn tiền"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div className="bg-white border border-[#E6DCD2] rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[#E6DCD2]">
@@ -266,16 +381,24 @@ export default function OrderDetailPage() {
 
           <div className="flex flex-col sm:items-end gap-2">
             <OrderStatusBadge status={order.status} />
-            {canCancelOrder && (
-              <button
-                type="button"
-                onClick={() => setShowCancelModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-bold hover:bg-red-100 transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-                <span>Hủy đơn hàng</span>
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={!canCancelOrder}
+              onClick={() => setShowCancelModal(true)}
+              title={
+                canCancelOrder
+                  ? undefined
+                  : cancelBlockedReason
+              }
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                canCancelOrder
+                  ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                  : 'border-[#E6DCD2] bg-[#F7F2EB] text-[#A8A29E] cursor-not-allowed'
+              }`}
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>{canCancelOrder ? 'Hủy đơn hàng' : 'Không thể hủy đơn'}</span>
+            </button>
             {(order.status === 'PAYMENT_FAILED' ||
               order.status === 'PENDING') && (
                 <button
@@ -431,10 +554,7 @@ export default function OrderDetailPage() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setShowCancelModal(false);
-                  setCancelReason('');
-                }}
+                onClick={() => setShowCancelModal(false)}
                 className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"
                 aria-label="Đóng cửa sổ"
               >
@@ -448,41 +568,20 @@ export default function OrderDetailPage() {
 
             <p className="text-sm text-[#795548] mt-2 leading-relaxed">
               Bạn có chắc muốn hủy đơn hàng{' '}
-              <strong className="text-[#3E2723">{order.orderCode}</strong>
+              <strong className="text-[#3E2723]">{order.orderCode}</strong>
               ? Vui lòng kiểm tra trước khi tiếp tục.
             </p>
-            <div className="mt-4">
-              <label
-                htmlFor="cancel-reason"
-                className="block text-xs font-bold text-[#5D4037] mb-2"
-              >
-                Lý do hủy đơn (không bắt buộc)
-              </label>
-
-              <textarea
-                id="cancel-reason"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Nhập lý do hủy đơn của bạn..."
-                rows={3}
-                maxLength={300}
-                className="w-full rounded-xl border border-[#E6DCD2] p-3 text-sm text-[#2C1810] outline-none focus:ring-2 focus:ring-[#BCAAA4] resize-none"
-              />
-            </div>
-
-            <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200 p-3">
-              <p className="text-xs text-amber-800 leading-relaxed">
-                Chức năng hủy đơn đang chờ kết nối Backend. Hiện tại
-                chưa thể gửi yêu cầu hủy đơn thực tế.
+            {order.status === 'PAID' && (
+              <p className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl p-3 mt-3 leading-relaxed">
+                Đơn đã thanh toán. Sau khi hủy, hệ thống sẽ hoàn{' '}
+                <strong>{formatVND(order.total)}</strong> về phương thức thanh
+                toán ban đầu và thu hồi điểm thưởng đã tích của đơn này.
               </p>
-            </div>
+            )}
             <div className="flex gap-3 mt-5">
               <button
                 type="button"
-                onClick={() => {
-                  setShowCancelModal(false);
-                  setCancelReason('');
-                }}
+                onClick={() => setShowCancelModal(false)}
                 className="flex-1 px-4 py-2.5 rounded-xl border border-[#E6DCD2] bg-white text-[#5D4037] text-sm font-bold hover:bg-[#FDFBF7] transition-colors"
               >
                 Quay lại
@@ -490,9 +589,9 @@ export default function OrderDetailPage() {
 
               <button
                 type="button"
-                disabled
-                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold opacity-50 cursor-not-allowed"
-                title="Backend chưa hỗ trợ hủy đơn hàng"
+                disabled={cancellingOrder}
+                onClick={handleCancelOrder}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Xác nhận hủy
               </button>

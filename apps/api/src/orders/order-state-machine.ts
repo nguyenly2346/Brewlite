@@ -32,6 +32,9 @@ export function canTransition(currentStatus: OrderStatus, nextStatus: OrderStatu
 }
 
 export function assertTransition(currentStatus: OrderStatus, nextStatus: OrderStatus): void {
+  if (currentStatus === OrderStatus.CANCELLED && nextStatus === OrderStatus.CANCELLED) {
+    throw new BadRequestException('Đơn hàng đã được hủy trước đó, không thể hủy lại');
+  }
   if (!canTransition(currentStatus, nextStatus)) {
     throw new BadRequestException(
       `Không thể chuyển trạng thái đơn hàng từ ${currentStatus} sang ${nextStatus}`,

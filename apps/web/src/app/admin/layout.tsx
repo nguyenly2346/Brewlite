@@ -9,7 +9,8 @@ import {
   ClipboardCheck,
   Package,
   Boxes,
-  Store,
+  Users,
+  Ticket,
   LogOut,
   ShieldCheck,
 } from 'lucide-react';
@@ -38,6 +39,18 @@ const NAV_ITEMS = [
     href: '/admin/inventory',
     label: 'Kho Nguyên Liệu & BOM',
     icon: Boxes,
+    exact: false,
+  },
+  {
+    href: '/admin/promotions',
+    label: 'Quản lý khuyến mãi',
+    icon: Ticket,
+    exact: false,
+  },
+  {
+    href: '/admin/accounts',
+    label: 'Quản lý tài khoản',
+    icon: Users,
     exact: false,
   },
 ];
@@ -110,15 +123,6 @@ export default function AdminLayout({
             );
           })}
 
-          <div className="lg:pt-4 lg:mt-4 lg:border-t border-[#4E342E]">
-            <Link
-              href="/"
-              className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-amber-200 bg-[#3E2723] border border-[#5D4037] hover:bg-[#4E342E] whitespace-nowrap transition-colors"
-            >
-              <Store className="w-4 h-4 shrink-0" />
-              <span>Về trang Khách hàng</span>
-            </Link>
-          </div>
         </nav>
 
         <div className="hidden lg:flex mt-auto p-4 border-t border-[#4E342E] items-center justify-between gap-2">

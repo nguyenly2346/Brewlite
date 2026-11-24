@@ -2,6 +2,7 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -63,6 +64,10 @@ export class AuthService {
     const isMatch = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isMatch) {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
+    }
+
+    if (!user.isActive) {
+      throw new ForbiddenException('Tài khoản đã bị khóa, vui lòng liên hệ quản trị viên');
     }
 
     const accessToken = await this.signToken(user.id, user.email, user.role);

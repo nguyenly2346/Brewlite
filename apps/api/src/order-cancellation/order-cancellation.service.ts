@@ -34,22 +34,27 @@ export class OrderCancellationService {
         );
       }
 
-      // Chỉ cho phép khách hàng hủy đơn chưa thanh toán
-      if (
-        order.status !== OrderStatus.PENDING &&
-        order.status !== OrderStatus.PAYMENT_FAILED
-      ) {
+      // Đơn đã hủy thì không được hủy lại.
+      if (order.status === OrderStatus.CANCELLED) {
         throw new BadRequestException(
-          'Không thể hủy đơn hàng ở trạng thái hiện tại',
+          'Đơn hàng đã được hủy trước đó, không thể hủy lại',
         );
       }
 
-      // Không hủy nếu đã có giao dịch thanh toán thành công
-      if (order.payments.some((p) => p.status === 'SUCCESS')) {
+      // Khách chỉ được hủy khi quầy chưa nhận pha chế:
+      // chưa thanh toán (PENDING / PAYMENT_FAILED) hoặc đã thanh toán nhưng quầy chưa nhận (PAID).
+      const cancellableStatuses: OrderStatus[] = [
+        OrderStatus.PENDING,
+        OrderStatus.PAYMENT_FAILED,
+        OrderStatus.PAID,
+      ];
+      if (!cancellableStatuses.includes(order.status)) {
         throw new BadRequestException(
-          'Đơn hàng đã thanh toán, cần xử lý hoàn tiền riêng',
+          'Quầy đã nhận pha chế hoặc đơn đã hoàn tất, không thể hủy đơn hàng',
         );
       }
+
+      const wasPaid = order.status === OrderStatus.PAID;
 
       assertTransition(order.status, OrderStatus.CANCELLED);
 
@@ -103,13 +108,53 @@ export class OrderCancellationService {
         });
       }
 
-      return tx.order.findUnique({
+      // Đơn đã thanh toán: thu hồi điểm 5% đã tích cho đơn này.
+      if (wasPaid) {
+        const earnedRows = await tx.loyaltyTransaction.findMany({
+          where: { orderId: order.id, type: 'EARN' },
+        });
+        const earned = earnedRows.reduce((sum, r) => sum + r.points, 0);
+        if (earned > 0) {
+          const owner = await tx.user.findUnique({ where: { id: user.id } });
+          const revoke = Math.min(earned, owner?.loyaltyPoints ?? 0);
+          if (revoke > 0) {
+            const afterRevoke = await tx.user.update({
+              where: { id: user.id },
+              data: { loyaltyPoints: { decrement: revoke } },
+            });
+            await tx.loyaltyTransaction.create({
+              data: {
+                userId: user.id,
+                orderId: order.id,
+                points: -revoke,
+                balanceAfter: afterRevoke.loyaltyPoints,
+                type: 'REVOKE_EARN',
+                description: `Thu hồi ${revoke} điểm đã tích do hủy đơn ${order.orderCode}`,
+              },
+            });
+          }
+        }
+      }
+
+      const cancelled = await tx.order.findUnique({
         where: { id: orderId },
         include: {
           items: true,
           payments: true,
         },
       });
+
+      // Hệ thống chưa có tài khoản ví/thẻ thật của khách nên việc hoàn tiền chỉ mang tính
+      // thông báo (mô phỏng), không phát sinh giao dịch thật.
+      const refund = wasPaid
+        ? {
+            amount: order.total,
+            simulated: true,
+            message: `Đã ghi nhận hoàn ${order.total.toLocaleString('vi-VN')}đ cho đơn ${order.orderCode}. Tiền sẽ về phương thức thanh toán ban đầu trong 1-3 ngày làm việc.`,
+          }
+        : null;
+
+      return { ...cancelled, refund };
     });
   }
 }
