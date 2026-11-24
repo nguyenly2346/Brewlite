@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './orders.dto';
@@ -12,6 +12,9 @@ export class OrdersController {
 
   @Post()
   async create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateOrderDto) {
+    if (user.role === UserRole.ADMIN) {
+      throw new ForbiddenException('Tài khoản quản trị không dùng để đặt hàng, hãy dùng tài khoản khách hàng');
+    }
     return this.ordersService.createOrder(user.id, dto);
   }
 

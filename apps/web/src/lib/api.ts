@@ -194,6 +194,47 @@ export interface AdminStatsResponse {
   recentOrders: Order[];
 }
 
+export interface AdminAccount {
+  id: string;
+  email: string;
+  fullName: string;
+  phone?: string | null;
+  role: UserRole;
+  isActive: boolean;
+  loyaltyPoints: number;
+  createdAt: string;
+  _count?: { orders: number };
+}
+
+export interface AdminPromotion {
+  id: string;
+  code: string;
+  description: string;
+  discountPercent: number;
+  maxDiscountAmount: number;
+  minOrderValue: number;
+  isActive: boolean;
+  expiresAt: string;
+}
+
+export interface AdminPromotionPayload {
+  code: string;
+  description: string;
+  discountPercent: number;
+  maxDiscountAmount: number;
+  minOrderValue: number;
+  isActive: boolean;
+  expiresAt: string;
+}
+
+export interface RefundNotice {
+  amount: number;
+  simulated: boolean;
+  message: string;
+}
+
+export type CancelOrderResult = Order & { refund?: RefundNotice | null };
+
 export interface AdminInventoryResponse {
   ingredients: Ingredient[];
   productsWithBom: Product[];
@@ -395,6 +436,15 @@ export const api = {
   getOrderById: (token: string, id: string) =>
     requestApi<Order>(`/orders/${id}`, {}, token),
 
+  cancelOrder: (token: string, id: string) =>
+    requestApi<CancelOrderResult>(
+      `/orders/${id}/cancel`,
+      {
+        method: 'POST',
+      },
+      token,
+    ),
+
   updateOrderStatus: (token: string, id: string, status: OrderStatus) =>
     requestApi<Order>(
       `/orders/${id}/status`,
@@ -410,6 +460,77 @@ export const api = {
 
   getAdminOrders: (token: string) =>
     requestApi<Order[]>('/admin/orders', {}, token),
+
+  getAdminAccounts: (token: string) =>
+    requestApi<AdminAccount[]>('/admin/accounts', {}, token),
+
+  createAdminAccount: (
+    token: string,
+    payload: {
+      email: string;
+      fullName: string;
+      password: string;
+      phone?: string;
+      role: UserRole;
+    },
+  ) =>
+    requestApi<AdminAccount>(
+      '/admin/accounts',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    ),
+
+  updateAdminAccount: (
+    token: string,
+    id: string,
+    payload: Partial<{
+      fullName: string;
+      phone: string;
+      role: UserRole;
+      isActive: boolean;
+      password: string;
+    }>,
+  ) =>
+    requestApi<AdminAccount>(
+      `/admin/accounts/${id}`,
+      { method: 'PATCH', body: JSON.stringify(payload) },
+      token,
+    ),
+
+  deleteAdminAccount: (token: string, id: string) =>
+    requestApi<{ deleted: boolean; id: string }>(
+      `/admin/accounts/${id}`,
+      { method: 'DELETE' },
+      token,
+    ),
+
+  getAdminPromotions: (token: string) =>
+    requestApi<AdminPromotion[]>('/admin/promotions', {}, token),
+
+  createAdminPromotion: (token: string, payload: AdminPromotionPayload) =>
+    requestApi<AdminPromotion>(
+      '/admin/promotions',
+      { method: 'POST', body: JSON.stringify(payload) },
+      token,
+    ),
+
+  updateAdminPromotion: (
+    token: string,
+    id: string,
+    payload: Partial<Omit<AdminPromotionPayload, 'code'>>,
+  ) =>
+    requestApi<AdminPromotion>(
+      `/admin/promotions/${id}`,
+      { method: 'PATCH', body: JSON.stringify(payload) },
+      token,
+    ),
+
+  deleteAdminPromotion: (token: string, id: string) =>
+    requestApi<{ deleted: boolean; id: string }>(
+      `/admin/promotions/${id}`,
+      { method: 'DELETE' },
+      token,
+    ),
 
   getAdminInventory: (token: string) =>
     requestApi<AdminInventoryResponse>('/admin/inventory', {}, token),

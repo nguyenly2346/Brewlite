@@ -1,4 +1,5 @@
-import { Body, Controller, Headers, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Headers, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { ProcessPaymentDto } from './payments.dto';
 import { JwtAuthGuard } from '../common/guards';
@@ -16,6 +17,9 @@ export class PaymentsController {
     @Body() dto: ProcessPaymentDto,
     @Headers('idempotency-key') headerIdempotencyKey?: string,
   ) {
+    if (user.role === UserRole.ADMIN) {
+      throw new ForbiddenException('Tài khoản quản trị không dùng để thanh toán đơn hàng');
+    }
     return this.paymentsService.processPayment(user, dto, headerIdempotencyKey);
   }
 }

@@ -5,11 +5,30 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomInt } from 'crypto';
 import { BarStation, InventoryTxType, OrderStatus, ProductSize, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './orders.dto';
 import { assertTransition } from './order-state-machine';
 import { AuthenticatedUser } from '../common/decorators';
+
+// Bảng ký tự bỏ các ký tự dễ nhầm (0/O, 1/I): 32^5 ≈ 33,5 triệu mã khác nhau.
+const ORDER_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+
+function generateOrderCode(): string {
+  let code = '#';
+  for (let i = 0; i < 5; i++) {
+    code += ORDER_CODE_ALPHABET[randomInt(ORDER_CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+function isOrderCodeCollision(error: unknown): boolean {
+  const e = error as { code?: string; meta?: { target?: unknown } } | null;
+  if (!e || e.code !== 'P2002') return false;
+  const target = e.meta?.target;
+  return Array.isArray(target) ? target.includes('orderCode') : String(target ?? '').includes('orderCode');
+}
 
 const SIZE_UPCHARGE: Record<ProductSize, number> = {
   [ProductSize.S]: 0,
@@ -159,6 +178,7 @@ export class OrdersService {
 
           const afterPromo = Math.max(0, subtotal - discountAmount);
           let pointsUsed = 0;
+          let balanceAfterRedeem = 0;
           let pointsDiscountAmount = 0;
 
           const requestedPoints = Math.floor(Number(dto.pointsUsed || 0));
@@ -168,20 +188,19 @@ export class OrdersService {
               pointsUsed = Math.min(requestedPoints, buyer.loyaltyPoints, afterPromo);
               pointsDiscountAmount = pointsUsed;
               if (pointsUsed > 0) {
-                await tx.user.update({
+                const updatedBuyer = await tx.user.update({
                   where: { id: buyer.id },
                   data: {
                     loyaltyPoints: { decrement: pointsUsed },
                   },
                 });
+                balanceAfterRedeem = updatedBuyer?.loyaltyPoints ?? 0;
               }
             }
           }
 
           const total = Math.max(0, afterPromo - pointsDiscountAmount);
-          const countOrders = await tx.order.count();
-          const randomSuffix = Math.floor(10 + Math.random() * 89);
-          const orderCode = `#${1043 + countOrders}${randomSuffix}`.slice(0, 6);
+          const orderCode = generateOrderCode();
 
           const createdOrder = await tx.order.create({
             data: {
@@ -212,6 +231,7 @@ export class OrdersService {
                 userId,
                 orderId: createdOrder.id,
                 points: -pointsUsed,
+                balanceAfter: balanceAfterRedeem,
                 type: 'REDEEM',
                 description: `Dùng ${pointsUsed.toLocaleString('vi-VN')} điểm giảm giá cho đơn ${orderCode}`,
               },
@@ -223,7 +243,8 @@ export class OrdersService {
       } catch (error) {
         const isLockConflict =
           error instanceof ConflictException && error.message.includes('OPT_LOCK_CONFLICT');
-        if (!isLockConflict) {
+        // Trùng mã đơn (hiếm): sinh mã khác và thử lại toàn bộ giao dịch.
+        if (!isLockConflict && !isOrderCodeCollision(error)) {
           throw error;
         }
         await new Promise((resolve) =>
@@ -307,12 +328,52 @@ export class OrdersService {
           }
         }
         if (order.pointsUsed && order.pointsUsed > 0 && tx.user) {
-          await tx.user.update({
+          const refunded = await tx.user.update({
             where: { id: order.userId },
             data: {
               loyaltyPoints: { increment: order.pointsUsed },
             },
           });
+          if (tx.loyaltyTransaction) {
+            await tx.loyaltyTransaction.create({
+              data: {
+                userId: order.userId,
+                orderId: order.id,
+                points: order.pointsUsed,
+                balanceAfter: refunded?.loyaltyPoints ?? 0,
+                type: 'REFUND_REDEEM',
+                description: `Hoàn ${order.pointsUsed} điểm do hủy đơn ${order.orderCode}`,
+              },
+            });
+          }
+        }
+
+        // Đơn đã thanh toán (PAID): thu hồi điểm 5% đã tích cho đơn này (không hoàn tiền).
+        if (order.status === OrderStatus.PAID && tx.user && tx.loyaltyTransaction?.findMany) {
+          const earnedRows = await tx.loyaltyTransaction.findMany({
+            where: { orderId: order.id, type: 'EARN' },
+          });
+          const earned = earnedRows.reduce((sum: number, r: { points: number }) => sum + r.points, 0);
+          if (earned > 0) {
+            const owner = await tx.user.findUnique({ where: { id: order.userId } });
+            const revoke = Math.min(earned, owner?.loyaltyPoints ?? 0);
+            if (revoke > 0) {
+              const afterRevoke = await tx.user.update({
+                where: { id: order.userId },
+                data: { loyaltyPoints: { decrement: revoke } },
+              });
+              await tx.loyaltyTransaction.create({
+                data: {
+                  userId: order.userId,
+                  orderId: order.id,
+                  points: -revoke,
+                  balanceAfter: afterRevoke?.loyaltyPoints ?? 0,
+                  type: 'REVOKE_EARN',
+                  description: `Thu hồi ${revoke} điểm đã tích do hủy đơn ${order.orderCode}`,
+                },
+              });
+            }
+          }
         }
       }
 
@@ -400,8 +461,10 @@ export class OrdersService {
         });
       }
 
-      return tx.order.update({
-        where: { id: order.id },
+      // Chỉ cập nhật khi trạng thái chưa bị giao dịch khác (thanh toán/hủy) đổi, tránh ghi đè.
+      try {
+        return await tx.order.update({
+        where: { id: order.id, status: order.status },
         data: {
           status: dto.status,
           ...(dto.cancelReason ? { cancelReason: dto.cancelReason } : {}),
@@ -417,7 +480,13 @@ export class OrdersService {
             },
           },
         },
-      });
+        });
+      } catch (error) {
+        if ((error as { code?: string })?.code === 'P2025') {
+          throw new ConflictException('Đơn hàng vừa được cập nhật bởi thao tác khác, vui lòng tải lại');
+        }
+        throw error;
+      }
     });
   }
 }

@@ -94,7 +94,9 @@ Hệ thống đã nạp sẵn tài khoản và dữ liệu trong Database để 
 - **Quản trị viên (Admin)**: `admin@brewlite.vn` / Mật khẩu: `BrewLite@123` (Toàn quyền quản trị quầy và kho).
 - **Barista (Admin)**: `barista@brewlite.vn` / Mật khẩu: `BrewLite@123`.
 
-*(Trang đăng nhập `/login` không còn nút điền nhanh, hãy tự nhập email và mật khẩu ở trên vào form).*
+*(Tài khoản Quản trị chỉ vào giao diện `/admin`, không đặt hàng; muốn thử mua hàng hãy dùng tài khoản khách hàng hoặc tạo thêm ở trang Quản lý tài khoản. Trang đăng nhập `/login` không còn nút điền nhanh, hãy tự nhập email và mật khẩu ở trên vào form).*
+
+> Biến `JWT_SECRET` là bắt buộc khi chạy production (đã đặt sẵn trong `docker-compose.yml` cho local). Chạy thủ công không đặt biến này thì hệ thống dùng secret ngẫu nhiên cho mỗi lần chạy.
 
 ### Mã khuyến mãi thử nghiệm
 - `BREWLITE10`: Giảm 10%, tối đa 20.000đ cho đơn hàng từ 40.000đ.
