@@ -30,6 +30,14 @@ services:
       JWT_SECRET: brewlite_super_secret_jwt_key_2026
       PORT: 4000
       FRONTEND_URL: http://localhost:3000
+      # Thanh toán: mặc định "mock" để chạy/test không cần khóa. Đặt trong file .env cạnh docker-compose.yml
+      # (PAYMENT_PROVIDER=vnpay, VNPAY_TMN_CODE, VNPAY_HASH_SECRET, API_PUBLIC_URL...) để dùng VNPay Sandbox.
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE:-}
+      VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET:-}
+      VNPAY_PAY_URL: ${VNPAY_PAY_URL:-}
+      VNPAY_QR_TTL_MINUTES: ${VNPAY_QR_TTL_MINUTES:-10}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:4000}
     depends_on:
       db:
         condition: service_healthy
@@ -46,6 +54,19 @@ services:
       - "3000:3000"
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:4000
+    depends_on:
+      - backend
+
+  # Tunnel công khai cho VNPay/điện thoại. Chỉ chạy khi .env có COMPOSE_PROFILES=tunnel
+  # và NGROK_AUTHTOKEN, NGROK_DOMAIN.
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: brewlite-ngrok
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: http --url=${NGROK_DOMAIN} backend:4000
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
     depends_on:
       - backend
 

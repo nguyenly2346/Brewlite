@@ -1,7 +1,7 @@
 export type UserRole = 'CUSTOMER' | 'ADMIN';
 export type ProductSize = 'S' | 'M' | 'L';
-export type PaymentMethod = 'WALLET' | 'CARD';
-export type PaymentStatus = 'SUCCESS' | 'FAILED';
+export type PaymentMethod = 'WALLET' | 'CARD' | 'VNPAY';
+export type PaymentStatus = 'SUCCESS' | 'FAILED' | 'PENDING';
 export type BarStation = 'ESPRESSO_BAR' | 'COLD_BREW_BAR' | 'TEA_MATCHA_BAR';
 export type OrderStatus =
   | 'PENDING'
@@ -102,6 +102,8 @@ export interface PaymentRecord {
   transactionRef?: string | null;
   errorMessage?: string | null;
   createdAt: string;
+  txnRef?: string | null;
+  expiresAt?: string | null;
 }
 
 export interface Order {
@@ -225,6 +227,21 @@ export interface AdminPromotionPayload {
   minOrderValue: number;
   isActive: boolean;
   expiresAt: string;
+}
+
+export type PaymentProvider = 'mock' | 'vnpay';
+
+export interface PaymentConfig {
+  provider: PaymentProvider;
+  vnpay: { qrTtlMinutes: number } | null;
+}
+
+export interface VnpayPaymentSession {
+  orderId: string;
+  txnRef: string;
+  paymentUrl: string;
+  expiresAt: string;
+  amount: number;
 }
 
 export interface RefundNotice {
@@ -426,6 +443,18 @@ export const api = {
           'idempotency-key': payload.idempotencyKey,
         },
         body: JSON.stringify(payload),
+      },
+      token,
+    ),
+
+  getPaymentConfig: () => requestApi<PaymentConfig>('/payments/config'),
+
+  createVnpayPayment: (token: string, orderId: string) =>
+    requestApi<VnpayPaymentSession>(
+      '/payments/vnpay/create',
+      {
+        method: 'POST',
+        body: JSON.stringify({ orderId }),
       },
       token,
     ),

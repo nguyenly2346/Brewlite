@@ -31,11 +31,13 @@ enum ProductSize {
 enum PaymentMethod {
   WALLET
   CARD
+  VNPAY
 }
 
 enum PaymentStatus {
   SUCCESS
   FAILED
+  PENDING
 }
 
 enum BarStation {
@@ -200,6 +202,12 @@ model Payment {
   transactionRef String?
   errorMessage   String?
   createdAt      DateTime      @default(now())
+  // Các cột dưới đây chỉ dùng cho thanh toán qua cổng thật (VNPay); luồng mock để trống.
+  txnRef         String?       @unique
+  expiresAt      DateTime?
+  paymentUrl     String?
+  gatewayCode    String?
+  paidAt         DateTime?
   order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 

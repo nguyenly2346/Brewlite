@@ -22,6 +22,7 @@ BrewLite là ứng dụng web đặt cà phê và thanh toán không tiếp xúc
 - **Backend (`apps/api/`)**: NestJS, TypeScript, class-validator, class-transformer, Passport JWT, Jest.
 - **Cơ sở dữ liệu**: PostgreSQL 16 quản lý qua Prisma ORM (16 bảng quan hệ).
 - **Môi trường & Đóng gói**: Docker, Docker Compose.
+- **Thanh toán**: VNPay Sandbox (QR và thẻ test), kiểm chữ ký HMAC-SHA512; ngrok để công khai backend khi cần nhận kết quả từ VNPay hoặc quét QR bằng điện thoại.
 
 ---
 
@@ -82,6 +83,89 @@ Mở trình duyệt web và truy cập các địa chỉ tương ứng:
 | **Giao diện Chính** | `http://localhost:3000` | Xem menu, chọn size, topping, đường đá, đặt món và thanh toán |
 | **Backend API Health** | `http://localhost:4000/health` | Kiểm tra trạng thái máy chủ NestJS và kết nối Database |
 | **Prisma Studio (Xem DB)** | `http://localhost:5555` | Xem và chỉnh sửa trực tiếp các bảng dữ liệu qua giao diện web |
+
+---
+
+## 4b. Thanh toán VNPay Sandbox (tùy chọn)
+
+Mặc định hệ thống dùng thanh toán giả lập (`PAYMENT_PROVIDER=mock`), không cần cấu hình gì thêm. Phần này hướng dẫn bật thanh toán qua **VNPay Sandbox**: ở trang checkout có nút "Thanh toán qua VNPay", cửa sổ mã QR đếm ngược 10 phút, trang tự hỏi lại trạng thái đơn mỗi 3 giây và tự chuyển sang thành công khi thanh toán xong.
+
+### Bước 1: Lấy khóa VNPay Sandbox
+
+Đăng ký merchant môi trường test tại `https://pay.vnpaytest.vn/dev-registration`. VNPay gửi email gồm **Terminal Code** (`vnp_TmnCode`), **Secret Key** (`vnp_HashSecret`), **URL thanh toán test** (`vnp_Url`) và thẻ test. Ô IPN URL trong form đăng ký là bắt buộc, có thể điền tạm một địa chỉ https bất kỳ (xem mục "IPN" bên dưới).
+
+### Bước 2: Tạo file `.env` ở thư mục gốc
+
+Tạo file tên đúng là `.env` (cạnh `docker-compose.yml`). File này không được đưa lên GitHub.
+
+```env
+PAYMENT_PROVIDER=vnpay
+VNPAY_TMN_CODE=merchant_sandbox_cua_ban
+VNPAY_HASH_SECRET=hash_secret_sandbox_cua_ban
+VNPAY_PAY_URL=https://sandbox.vnpaytest.vn/paymentv2/vpcpay.html
+API_PUBLIC_URL=http://localhost:4000
+```
+
+Không dùng dấu nháy và không để khoảng trắng quanh dấu `=`. Đặt `PAYMENT_PROVIDER=vnpay` mà thiếu khóa thì backend không khởi động. Khi bật `vnpay`, endpoint thanh toán giả lập bị đóng.
+
+### Bước 3: Chạy hệ thống
+
+```bash
+docker compose up --build -d
+```
+
+Kiểm tra backend đã ở chế độ VNPay: mở `http://localhost:4000/payments/config`, kết quả phải có `"provider":"vnpay"`. Migration `add_vnpay_payment` tự chạy khi backend khởi động.
+
+### Bước 4: Thanh toán thử
+
+1. Vào `http://localhost:3000`, đăng nhập tài khoản khách hàng, thêm món vào giỏ và sang trang checkout.
+2. Bấm "Thanh toán qua VNPay", sau đó bấm "Mở trang thanh toán VNPay" để thanh toán ngay trên máy tính.
+3. Chọn "Thẻ nội địa và tài khoản ngân hàng", chọn ngân hàng NCB và nhập thẻ test (theo email của VNPay, thông tin có thể được VNPay thay đổi):
+
+| Thông tin | Giá trị |
+| :--- | :--- |
+| Ngân hàng | NCB |
+| Số thẻ | `9704198526191432198` |
+| Tên chủ thẻ | `NGUYEN VAN A` |
+| Ngày phát hành | `07/15` |
+| Mật khẩu OTP | `123456` |
+
+4. Thanh toán xong, VNPay chuyển về `/payments/vnpay/return`, backend kiểm chữ ký rồi chuyển khách về trang đơn hàng. Trạng thái đơn chuyển sang đã thanh toán và điểm thưởng được cộng.
+
+Nếu thanh toán thất bại hoặc khách hủy trên VNPay, đơn chuyển sang `PAYMENT_FAILED` và vẫn có thể thanh toán lại hoặc hủy. Khi mã QR hết hạn, đơn vẫn được giữ và có nút tạo QR mới.
+
+### Quét QR bằng điện thoại (cần ngrok)
+
+Điện thoại không truy cập được `localhost` của máy tính, nên sau khi trả tiền sẽ không quay về được backend. Muốn quét QR bằng điện thoại, cần công khai backend bằng ngrok:
+
+1. Tạo tài khoản ngrok miễn phí. Lấy **Authtoken** tại `https://dashboard.ngrok.com/get-started/your-authtoken` và tạo domain miễn phí ở mục **Domains** (dạng `ten-gi-do.ngrok-free.dev`).
+2. Thêm vào `.env` và sửa `API_PUBLIC_URL` thành địa chỉ ngrok (mỗi biến chỉ xuất hiện một lần):
+
+```env
+NGROK_AUTHTOKEN=<authtoken của bạn>
+NGROK_DOMAIN=ten-gi-do.ngrok-free.dev
+API_PUBLIC_URL=https://ten-gi-do.ngrok-free.dev
+COMPOSE_PROFILES=tunnel
+```
+
+3. Chạy `docker compose up --build -d`. Service `ngrok` trong `docker-compose.yml` chỉ chạy khi có `COMPOSE_PROFILES=tunnel`, nên người không dùng ngrok vẫn chạy compose bình thường.
+4. Kiểm tra tunnel: mở `https://ten-gi-do.ngrok-free.dev/payments/config` (lần đầu bấm **Visit Site**), kết quả phải có `"provider":"vnpay"`.
+5. Tạo **QR mới** ở trang checkout (QR cũ vẫn chứa địa chỉ cũ), quét bằng điện thoại và thanh toán bằng thẻ test. Trang checkout trên máy tính tự chuyển sang thành công.
+
+Backend vẫn chạy ở `http://localhost:4000` nên Postman và giao diện web gọi API như bình thường. `API_PUBLIC_URL` chỉ là địa chỉ backend cung cấp cho VNPay để chuyển khách về và gọi IPN. Cần giữ Docker chạy trong suốt quá trình kiểm thử, tắt máy thì tunnel dừng.
+
+### IPN (server gọi server)
+
+Backend có hai đường: `/payments/vnpay/return` (chuyển khách về website, HTTP 303) và `/payments/vnpay/ipn`. Cả hai dùng chung một hàm kiểm chữ ký và chỉ ghi nhận đúng một lần, nên IPN gửi lại không tích điểm hai lần. Nếu IPN URL đăng ký với VNPay không trỏ vào backend, kết quả vẫn được ghi nhận khi khách quay về qua Return; nếu khách đóng trình duyệt giữa chừng thì đơn chưa được cập nhật. Muốn VNPay gọi IPN thật, đặt IPN URL trong trang quản trị merchant sandbox thành `https://<domain ngrok>/payments/vnpay/ipn`.
+
+### Giới hạn hiện tại
+
+- Chưa hoàn tiền thật qua VNPay (hủy đơn đã thanh toán vẫn là thông báo mô phỏng).
+- Chưa tự hủy đơn `PENDING` quá hạn giữ món.
+- Chưa truy vấn lại giao dịch khi lỡ IPN.
+- Nếu tiền đã về nhưng đơn đã hủy, đơn không bị khôi phục; giao dịch được ghi `SUCCESS` kèm ghi chú để hoàn tiền thủ công.
+
+Chi tiết kỹ thuật xem thêm tại [`docs/vnpay-sandbox.md`](docs/vnpay-sandbox.md).
 
 ---
 
@@ -203,6 +287,17 @@ hook husky + commitlint tự kiểm tra commit message.
   ```bash
   docker compose down
   ```
+  Lệnh `docker compose down -v` xóa cả volume dữ liệu PostgreSQL, chỉ dùng khi muốn xóa sạch dữ liệu.
+- **Trang checkout không hiện nút hoặc mã QR VNPay**:  
+  Backend đang ở chế độ mock. Mở `http://localhost:4000/payments/config`, nếu kết quả là `"provider":"mock"` thì kiểm tra file `.env` ở thư mục gốc (không phải `.env.example`), chạy `docker compose up -d --force-recreate backend` rồi nhấn Ctrl+F5 trên trình duyệt.
+- **Trang VNPay báo "The terminal (website) not found"**:  
+  `VNPAY_TMN_CODE` hoặc `VNPAY_PAY_URL` sai. Kiểm tra bằng `docker compose exec backend printenv VNPAY_TMN_CODE` và `docker compose exec backend printenv VNPAY_PAY_URL`. Sau khi sửa `.env`, chạy lại backend và tạo **QR mới** vì QR cũ đã chứa link cũ.
+- **Quét QR bằng điện thoại xong báo không truy cập được trang web**:  
+  `API_PUBLIC_URL` đang là `localhost`. Dùng ngrok theo hướng dẫn ở mục 4b, hoặc bấm "Mở trang thanh toán VNPay" để thanh toán ngay trên máy tính.
+- **Ngrok báo `ERR_NGROK_105`**:  
+  `NGROK_AUTHTOKEN` sai hoặc thừa ký tự. Copy lại token bằng nút Copy trên dashboard ngrok, dán vào `.env` (không dấu nháy, không khoảng trắng) rồi chạy `docker compose up -d --force-recreate ngrok`.
+- **Lệnh `docker compose logs ngrok` không in gì**:  
+  Bình thường nếu container ở trạng thái `Up`. Kiểm tra tunnel bằng cách mở `https://<domain ngrok>/payments/config`. Muốn xem log, thêm `--log=stdout` vào dòng `command` của service `ngrok`.
 
 ---
 
@@ -225,10 +320,4 @@ Secret nằm trong GitHub Secrets (`RENDER_DEPLOY_HOOK_URL`, `PROD_API_URL`) và
 
 Khi triển khai thất bại (smoke test đỏ), pipeline dừng. Rollback: trên nền tảng chọn lại bản deploy ổn định gần nhất, hoặc `git revert <commit>` trên `main` để pipeline deploy lại, hoặc deploy lại image tag cũ (`vX.Y.Z` trước đó). Lỗi do migration thì khôi phục snapshot database trước khi deploy lại. Chi tiết từng tình huống ở [`docs/deployment.md`](docs/deployment.md).
 
-## 11. Quy trình làm việc nhóm
-
-- `main` là nhánh phát hành; không commit trực tiếp vào `main`.
-- Mỗi việc làm trên một nhánh riêng (`feat/...`, `fix/...`, `docs/...`), mở pull request vào `main`, cần CI xanh và ít nhất 1 thành viên review trước khi merge.
-- Commit theo Conventional Commits (xem mục "Quy ước commit" ở trên).
-- Mỗi pull request tick đủ Definition of Done trong `.github/pull_request_template.md` và liên kết mã yêu cầu trong `docs/traceability-matrix.md`.
-- Thay đổi yêu cầu, sơ đồ hoặc kiến trúc phải đi qua pull request và ghi rõ lý do trong mô tả.
+Bản triển khai production dùng `docker-compose.cd.yml` và mặc định vẫn là thanh toán giả lập (`mock`) cho đến khi truyền các biến VNPay vào môi trường triển khai.
