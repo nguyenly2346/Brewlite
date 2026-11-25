@@ -24,6 +24,8 @@ import {
   RefundNotice,
 } from '../../../../lib/api';
 import { OrderStatusBadge } from '../../../../components/OrderStatusBadge';
+import { VnpayPaymentModal } from '../../../../components/VnpayPaymentModal';
+import { usePaymentProvider } from '../../../../lib/usePaymentProvider';
 import { useAuthStore } from '../../../../store/useAuthStore';
 import { useCartStore } from '../../../../store/useCartStore';
 
@@ -40,6 +42,8 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [retryingPayment, setRetryingPayment] = useState<boolean>(false);
+  const provider = usePaymentProvider();
+  const [showVnpay, setShowVnpay] = useState<boolean>(false);
 
   const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
   const [cancellingOrder, setCancellingOrder] = useState<boolean>(false);
@@ -53,6 +57,9 @@ export default function OrderDetailPage() {
     null,
   );
   const [errorToastProgress, setErrorToastProgress] = useState<number>(100);
+  const [errorToastTitle, setErrorToastTitle] = useState<string>(
+    'Không thể hủy đơn hàng',
+  );
 
   // Khách được hủy khi quầy chưa nhận pha chế (kể cả đơn đã thanh toán). Đơn đã hủy thì không hủy lại.
   const canCancelOrder =
@@ -98,11 +105,35 @@ export default function OrderDetailPage() {
   useEffect(() => {
     if (searchParams?.get('paid') === '1') {
       triggerPaymentSuccessToast();
+      // Quay về từ trang VNPay trên cùng tab: giỏ hàng chưa được dọn ở bước checkout.
+      clearCart();
+      refreshProfile();
       if (params?.id) {
         router.replace(`/orders/${params.id}`, { scroll: false });
       }
     }
   }, [searchParams, params?.id, router]);
+
+  useEffect(() => {
+    const payResult = searchParams?.get('pay');
+    if (!payResult) return;
+    if (payResult === 'failed') {
+      setErrorToastTitle('Thanh toán VNPay chưa thành công');
+      setErrorToastMessage(
+        'Giao dịch chưa hoàn tất. Đơn hàng vẫn được giữ, bạn có thể thanh toán lại.',
+      );
+    } else if (payResult === 'review') {
+      setErrorToastTitle('Cần đối soát thanh toán');
+      setErrorToastMessage(
+        'VNPay đã nhận tiền nhưng đơn không còn ở trạng thái chờ thanh toán (đã hủy hoặc đã trả trước đó). Vui lòng liên hệ quầy để được hoàn tiền.',
+      );
+    }
+    setErrorToastProgress(100);
+    fetchOrder();
+    if (params?.id) {
+      router.replace(`/orders/${params.id}`, { scroll: false });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!showSuccessToast) return;
@@ -138,8 +169,20 @@ export default function OrderDetailPage() {
     return () => clearInterval(interval);
   }, [errorToastMessage]);
 
+  const handleVnpayPaid = async (paidOrder: Order) => {
+    setShowVnpay(false);
+    setOrder(paidOrder);
+    clearCart();
+    await refreshProfile();
+    triggerPaymentSuccessToast();
+  };
+
   const handleRetryPayment = async () => {
     if (!token || !order) return;
+    if (provider === 'vnpay') {
+      setShowVnpay(true);
+      return;
+    }
     setRetryingPayment(true);
     setError(null);
     try {
@@ -181,6 +224,7 @@ export default function OrderDetailPage() {
     } catch (err) {
       setShowCancelModal(false);
       setErrorToastProgress(100);
+      setErrorToastTitle('Không thể hủy đơn hàng');
       setErrorToastMessage(
         err instanceof Error ? err.message : 'Hủy đơn hàng không thành công',
       );
@@ -218,9 +262,11 @@ export default function OrderDetailPage() {
 
   const latestPayment = order.payments?.[0];
   const paymentMethodLabel =
-    latestPayment?.method === 'CARD'
-      ? 'Thẻ ngân hàng (Visa / Napas)'
-      : 'Ví điện tử (MoMo / VNPay)';
+    latestPayment?.method === 'VNPAY'
+      ? 'VNPay (QR / thẻ ATM nội địa)'
+      : latestPayment?.method === 'CARD'
+        ? 'Thẻ ngân hàng (Visa / Napas)'
+        : 'Ví điện tử (MoMo / VNPay)';
   const pointsEarned =
     order.status === 'PENDING' ||
       order.status === 'PAYMENT_FAILED' ||
@@ -281,7 +327,7 @@ export default function OrderDetailPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-extrabold text-red-300">
-                Không thể hủy đơn hàng
+                {errorToastTitle}
               </p>
               <p className="text-xs text-[#E6DCD2] mt-0.5 leading-relaxed">
                 {errorToastMessage}
@@ -409,7 +455,11 @@ export default function OrderDetailPage() {
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>
-                    {retryingPayment ? 'Đang thanh toán...' : 'Thanh toán lại'}
+                    {retryingPayment
+                      ? 'Đang thanh toán...'
+                      : provider === 'vnpay'
+                        ? 'Thanh toán qua VNPay'
+                        : 'Thanh toán lại'}
                   </span>
                 </button>
               )}
@@ -598,6 +648,14 @@ export default function OrderDetailPage() {
             </div>
           </div>
         </div>
+      )}
+      {showVnpay && token && order && (
+        <VnpayPaymentModal
+          token={token}
+          orderId={order.id}
+          onPaid={handleVnpayPaid}
+          onClose={() => setShowVnpay(false)}
+        />
       )}
     </div>
   );

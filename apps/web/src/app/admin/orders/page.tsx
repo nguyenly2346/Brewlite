@@ -481,7 +481,11 @@ export default function AdminOrdersPage() {
                   <p className="text-[#3E2723] font-semibold flex items-center gap-1">
                     <CreditCard className="w-3 h-3 text-[#B45309]" />
                     <span>
-                      {selectedDetailOrder.payments[0].method === 'CARD' ? 'Thẻ ngân hàng' : 'Ví điện tử'} •{' '}
+                      {selectedDetailOrder.payments[0].method === 'VNPAY'
+                        ? 'VNPay'
+                        : selectedDetailOrder.payments[0].method === 'CARD'
+                          ? 'Thẻ ngân hàng'
+                          : 'Ví điện tử'} •{' '}
                       {selectedDetailOrder.payments[0].status}
                     </span>
                   </p>

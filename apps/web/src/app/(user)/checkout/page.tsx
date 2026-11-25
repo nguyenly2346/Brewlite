@@ -16,8 +16,11 @@ import {
   Store,
   ShoppingBag,
   Coins,
+  QrCode,
 } from 'lucide-react';
-import { api, formatVND, PaymentMethod } from '../../../lib/api';
+import { api, formatVND, Order, PaymentMethod } from '../../../lib/api';
+import { usePaymentProvider } from '../../../lib/usePaymentProvider';
+import { VnpayPaymentModal } from '../../../components/VnpayPaymentModal';
 import { useCartStore } from '../../../store/useCartStore';
 import { useAuthStore } from '../../../store/useAuthStore';
 
@@ -48,6 +51,8 @@ export default function CheckoutPage() {
   const [processing, setProcessing] = useState<boolean>(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [failedOrderCode, setFailedOrderCode] = useState<string | null>(null);
+  const provider = usePaymentProvider();
+  const [vnpayOrderId, setVnpayOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (hydrated && !token) {
@@ -94,6 +99,12 @@ export default function CheckoutPage() {
         setPendingOrderId(createdOrder.id);
       }
 
+      // Cổng thật: không tự "trừ tiền" ở đây nữa, mở mã QR VNPay và chờ VNPay báo kết quả về.
+      if (provider === 'vnpay') {
+        setVnpayOrderId(currentOrderId);
+        return;
+      }
+
       const idempotencyKey = `pay-${currentOrderId}-${Date.now()}-${
         simulateFailure ? 'fail' : 'ok'
       }`;
@@ -136,6 +147,13 @@ export default function CheckoutPage() {
     } finally {
       setProcessing(false);
     }
+  };
+
+  const handleVnpayPaid = async (order: Order) => {
+    setVnpayOrderId(null);
+    clearCart();
+    await refreshProfile();
+    router.push(`/orders/${order.id}?paid=1`);
   };
 
   if (!hydrated) {
@@ -242,6 +260,26 @@ export default function CheckoutPage() {
               2. Chọn phương thức thanh toán
             </h2>
 
+            {provider === 'vnpay' ? (
+              <div className="flex items-start gap-3.5 p-4 rounded-2xl border bg-amber-50/70 border-[#3E2723] shadow-sm">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-[#3E2723] text-white">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-[#2C1810]">
+                      VNPay (quét mã QR / thẻ ATM nội địa)
+                    </span>
+                    <CheckCircle2 className="w-4 h-4 text-[#3E2723]" />
+                  </div>
+                  <p className="text-xs text-[#795548] mt-1">
+                    Sau khi bấm thanh toán, hệ thống hiện mã QR. Bạn quét bằng điện thoại
+                    hoặc mở trang VNPay ngay trên máy này. Môi trường thử nghiệm, không
+                    trừ tiền thật.
+                  </p>
+                </div>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 type="button"
@@ -309,9 +347,11 @@ export default function CheckoutPage() {
                 </div>
               </button>
             </div>
+            )}
           </div>
 
           <div className="bg-white border border-[#E6DCD2] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+            {provider !== 'vnpay' && (
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 text-[#B45309] flex items-center justify-center shrink-0">
@@ -341,6 +381,7 @@ export default function CheckoutPage() {
                 <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600" />
               </label>
             </div>
+            )}
 
             {paymentError && (
               <div className="p-4 rounded-2xl bg-red-50 border border-red-200 space-y-3">
@@ -367,7 +408,11 @@ export default function CheckoutPage() {
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#3E2723] text-white text-xs font-bold hover:bg-[#2C1810] transition-colors"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Tắt mô phỏng lỗi & Thử thanh toán lại ngay</span>
+                    <span>
+                      {provider === 'vnpay'
+                        ? 'Thử thanh toán lại ngay'
+                        : 'Tắt mô phỏng lỗi & Thử thanh toán lại ngay'}
+                    </span>
                   </button>
                   {pendingOrderId && (
                     <Link
@@ -483,7 +528,7 @@ export default function CheckoutPage() {
 
           <button
             type="button"
-            disabled={processing}
+            disabled={processing || provider === null}
             onClick={handlePayment}
             className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-[#3E2723] text-white font-bold text-sm sm:text-base hover:bg-[#2C1810] disabled:opacity-50 transition-all shadow-sm tabular-nums"
           >
@@ -493,11 +538,22 @@ export default function CheckoutPage() {
                 ? 'Đang xử lý giao dịch...'
                 : paymentError
                   ? `Thử thanh toán lại • ${formatVND(finalTotal)}`
-                  : `Xác nhận thanh toán • ${formatVND(finalTotal)}`}
+                  : provider === 'vnpay'
+                    ? `Thanh toán qua VNPay • ${formatVND(finalTotal)}`
+                    : `Xác nhận thanh toán • ${formatVND(finalTotal)}`}
             </span>
           </button>
         </div>
       </div>
+
+      {vnpayOrderId && token && (
+        <VnpayPaymentModal
+          token={token}
+          orderId={vnpayOrderId}
+          onPaid={handleVnpayPaid}
+          onClose={() => setVnpayOrderId(null)}
+        />
+      )}
     </div>
   );
 }
